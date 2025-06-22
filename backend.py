@@ -18,6 +18,7 @@ app.add_middleware(
 )
 
 TRADES_FILE = "trades.csv"
+HOUSEHOLD_STATE_FILE = "household_state.json"
 
 # Helper to get all trades from CSV
 def get_trades():
@@ -26,11 +27,17 @@ def get_trades():
     df = pd.read_csv(TRADES_FILE)
     return df.to_dict(orient="records")
 
-# Helper to get simulation state (dummy for now, can be replaced with real-time state)
+def get_household_state():
+    if not os.path.exists(HOUSEHOLD_STATE_FILE):
+        return {"households": {}, "hour": None}
+    with open(HOUSEHOLD_STATE_FILE, "r") as f:
+        return json.load(f)
+
+# Helper to get simulation state (now includes household state and trades)
 def get_simulation_state():
-    # For now, just return the latest trades as a proxy for grid activity
     trades = get_trades()
-    return {"trades": trades}
+    household_state = get_household_state()
+    return {"trades": trades, "household_state": household_state}
 
 # Metrics calculation endpoint
 @app.get("/metrics")

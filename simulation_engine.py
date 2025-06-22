@@ -7,6 +7,7 @@ import time
 import os
 import pandas as pd
 from datetime import datetime
+import json
 
 
 class Role(Enum):
@@ -518,6 +519,21 @@ if __name__ == "__main__":
         print(f"\nHour {hour}:")
         for hid, hdata in result['households'].items():
             print(f"  {hid}: Battery={hdata['battery_level']:.2f}, Net={hdata['net_energy']:.2f}, Role={hdata['role']}")
+        # Write household_state.json for backend
+        household_state = {
+            "hour": hour,
+            "households": {
+                hid: {
+                    "battery_level": hdata["battery_level"],
+                    "net_energy": hdata["net_energy"],
+                    "role": hdata["role"],
+                    "solar_generation": hdata["solar_generation"],
+                    "demand": hdata["demand"]
+                } for hid, hdata in result["households"].items()
+            }
+        }
+        with open("household_state.json", "w") as f:
+            json.dump(household_state, f, indent=2)
     
     # Print summary
     print(f"\nSimulation completed!")
