@@ -4,6 +4,9 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from enum import Enum
 import time
+import os
+import pandas as pd
+from datetime import datetime
 
 
 class Role(Enum):
@@ -240,6 +243,7 @@ class SimulationEngine:
         self.weather_conditions = []
         self.crisis_events = []
         self.simulation_log = []
+        self.trading_system = None  # Will be initialized after households are added
         
     def add_household(self, household: Household):
         """Add a household to the simulation"""
@@ -281,6 +285,10 @@ class SimulationEngine:
         self.crisis_events.append(crisis)
         return crisis
     
+    def initialize_trading_system(self):
+        """Initialize the trading system after households are added"""
+        self.trading_system = TradingSystem(self)
+
     def simulate_step(self) -> Dict:
         """Simulate one hour for all households"""
         if self.current_hour >= len(self.weather_conditions):
@@ -297,6 +305,10 @@ class SimulationEngine:
         for household_id, household in self.households.items():
             result = household.simulate_hour(self.current_hour, weather_factor)
             step_results['households'][household_id] = result
+        
+        # After simulating each household, run trading
+        if self.trading_system:
+            self.trading_system.match_trades(self.current_hour)
         
         # Clear expired crises
         for household in self.households.values():
@@ -419,6 +431,77 @@ def create_sample_community() -> SimulationEngine:
     return engine
 
 
+# --- Trading System ---
+class TradingSystem:
+    def __init__(self, simulation_engine):
+        self.engine = simulation_engine
+        self.transaction_history = []
+        self.ledger_file = "trades.csv"
+        self._initialize_ledger()
+
+    def _initialize_ledger(self):
+        """Initialize the transaction ledger file if it doesn't exist"""
+        if not os.path.exists(self.ledger_file):
+            df = pd.DataFrame(columns=["time", "hour", "seller_id", "buyer_id", "kwh", "price", "total"])
+            df.to_csv(self.ledger_file, index=False)
+
+    def match_trades(self, hour):
+        """
+        Match sellers with buyers and execute trades.
+        Buyers are sorted by priority and battery level.
+        """
+        households = list(self.engine.households.values())
+        sellers = [h for h in households if h.role == Role.SELLER]
+        buyers = [h for h in households if h.role == Role.BUYER]
+        buyers.sort(key=lambda x: (x.get_priority(), -x.battery_level))
+        for buyer in buyers:
+            for seller in sellers:
+                surplus = seller.current_net_energy
+                deficit = abs(buyer.current_net_energy)
+                if surplus <= 0 or deficit <= 0:
+                    continue
+                kwh = min(surplus, deficit)
+                price = 0.15  # $0.15 per kWh
+                try:
+                    success = self._execute_trade(seller, buyer, kwh, price, hour)
+                except Exception as e:
+                    print(f"Trade error: {e}")
+                    continue
+                if not success:
+                    continue
+
+    def _execute_trade(self, seller, buyer, kwh, price, hour):
+        """
+        Execute a trade between a seller and a buyer.
+        """
+        seller_success = seller.trade_energy(kwh, price, buyer.id)
+        buyer_success = buyer.trade_energy(kwh, price, seller.id)
+        if seller_success and buyer_success:
+            self.log_transaction(seller, buyer, kwh, price, hour)
+            return True
+        return False
+
+    def log_transaction(self, seller, buyer, kwh, price, hour):
+        """
+        Log a transaction to the ledger.
+        """
+        timestamp = datetime.now()
+        total_price = kwh * price
+        transaction = {
+            "time": timestamp,
+            "hour": hour,
+            "seller_id": seller.id,
+            "buyer_id": buyer.id,
+            "kwh": kwh,
+            "price": price,
+            "total": total_price
+        }
+        self.transaction_history.append(transaction)
+        df = pd.DataFrame([transaction])
+        df.to_csv(self.ledger_file, mode="a", header=False, index=False)
+        return transaction
+
+
 if __name__ == "__main__":
     # Example usage
     print("Creating SolarShare Digital Twin Simulation Engine...")
@@ -428,7 +511,13 @@ if __name__ == "__main__":
     
     # Simulate for 24 hours
     print(f"\nSimulating 24 hours for {len(engine.households)} households...")
-    results = engine.simulate_period(24)
+    results = []
+    for hour in range(24):
+        result = engine.simulate_step()
+        results.append(result)
+        print(f"\nHour {hour}:")
+        for hid, hdata in result['households'].items():
+            print(f"  {hid}: Battery={hdata['battery_level']:.2f}, Net={hdata['net_energy']:.2f}, Role={hdata['role']}")
     
     # Print summary
     print(f"\nSimulation completed!")

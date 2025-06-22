@@ -13,6 +13,7 @@ from simulation_engine import (
 )
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 
 def test_basic_simulation():
@@ -217,6 +218,33 @@ def test_trading_functionality():
         print("No trading opportunity - households not in complementary roles")
 
 
+def test_trading_system_integration():
+    """Test TradingSystem integration with SimulationEngine"""
+    print("\n=== Testing TradingSystem Integration ===")
+    engine = SimulationEngine()
+    # Add two households: one seller, one buyer
+    demand_pattern_seller = [0.5]*24
+    demand_pattern_buyer = [2.0]*24
+    seller = Household("SELLER1", 4.0, 12.0, demand_pattern_seller, initial_battery_level=1.0)
+    buyer = Household("BUYER1", 2.0, 8.0, demand_pattern_buyer, initial_battery_level=0.0)
+    engine.add_household(seller)
+    engine.add_household(buyer)
+    engine.generate_weather_conditions(days=1)
+    engine.initialize_trading_system()
+    # Simulate one hour (should trigger trading)
+    engine.simulate_step()
+    # Check transaction history
+    ts = engine.trading_system
+    print(f"Transaction history: {ts.transaction_history}")
+    # Read and print the ledger file
+    ledger = pd.read_csv(ts.ledger_file)
+    print("Ledger file contents:")
+    print(ledger.tail())
+    # Check that at least one trade was executed
+    assert len(ts.transaction_history) > 0, "No trades were executed!"
+    print("TradingSystem integration test passed.")
+
+
 if __name__ == "__main__":
     print("SolarShare Digital Twin Simulation Engine - Test Suite")
     print("=" * 60)
@@ -226,6 +254,7 @@ if __name__ == "__main__":
     engine, results = test_community_simulation()
     test_crisis_injection()
     test_trading_functionality()
+    test_trading_system_integration()
     
     # Create visualizations
     try:
