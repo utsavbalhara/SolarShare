@@ -34,7 +34,8 @@ class Household:
                  solar_capacity: float, 
                  battery_size: float, 
                  demand_pattern: List[float],
-                 initial_battery_level: float = 0.5):
+                 initial_battery_level: float = 0.5,
+                 user_type: str = "standard"):
         """
         Initialize a household digital twin.
         
@@ -44,12 +45,14 @@ class Household:
             battery_size: Battery storage capacity in kWh (5-15 kWh typical)
             demand_pattern: 24-hour demand pattern (kWh per hour)
             initial_battery_level: Initial battery charge level (0.0 to 1.0)
+            user_type: Type of user for priority tagging ("standard", "medical", "water_pump", etc.)
         """
         self.id = id
         self.solar = solar_capacity
         self.battery = battery_size
         self.demand = demand_pattern
         self.role = Role.IDLE
+        self.user_type = user_type
         
         # Battery state
         self.battery_level = initial_battery_level  # 0.0 to 1.0
@@ -145,13 +148,23 @@ class Household:
             self.current_net_energy += discharge_amount
     
     def _update_role(self):
-        """Update household role based on current energy state"""
-        if self.current_net_energy > 0.1:  # Small threshold to avoid floating point issues
+        """Update household role based on battery level and current energy state"""
+        if self.battery_level > 0.8 and self.current_net_energy > 0:
             self.role = Role.SELLER
-        elif self.current_net_energy < -0.1:
+        elif self.battery_level < 0.2 and self.current_net_energy < 0:
             self.role = Role.BUYER
         else:
             self.role = Role.IDLE
+    
+    def get_priority(self) -> int:
+        """
+        Determine household priority for energy trading.
+        Critical users (medical, water_pump) get higher priority.
+        
+        Returns:
+            int: Priority value (1 for critical users, 0 for others)
+        """
+        return 1 if self.user_type in ["medical", "water_pump"] else 0
     
     def can_sell_energy(self, amount: float) -> bool:
         """Check if household can sell specified amount of energy"""
@@ -210,7 +223,9 @@ class Household:
             'total_generated': self.total_generated,
             'total_consumed': self.total_consumed,
             'total_traded': self.total_traded,
-            'active_crisis': self.active_crisis is not None
+            'active_crisis': self.active_crisis is not None,
+            'user_type': self.user_type,
+            'priority': self.get_priority()
         }
 
 
@@ -383,19 +398,19 @@ def create_sample_community() -> SimulationEngine:
     
     # Create households with different characteristics
     households_data = [
-        ("H001", 3.5, 10.0, "typical"),
-        ("H002", 4.2, 12.0, "high_usage"),
-        ("H003", 2.8, 8.0, "low_usage"),
-        ("H004", 3.0, 10.0, "night_shift"),
-        ("H005", 4.5, 15.0, "typical"),
-        ("H006", 2.5, 7.0, "low_usage"),
-        ("H007", 3.8, 11.0, "high_usage"),
-        ("H008", 3.2, 9.0, "typical"),
+        ("H001", 3.5, 10.0, "typical", "standard"),
+        ("H002", 4.2, 12.0, "high_usage", "standard"),
+        ("H003", 2.8, 8.0, "low_usage", "medical"),  # Medical facility
+        ("H004", 3.0, 10.0, "night_shift", "standard"),
+        ("H005", 4.5, 15.0, "typical", "water_pump"),  # Water pump
+        ("H006", 2.5, 7.0, "low_usage", "standard"),
+        ("H007", 3.8, 11.0, "high_usage", "standard"),
+        ("H008", 3.2, 9.0, "typical", "standard"),
     ]
     
-    for household_id, solar_capacity, battery_size, household_type in households_data:
+    for household_id, solar_capacity, battery_size, household_type, user_type in households_data:
         demand_pattern = generate_demand_pattern(household_type)
-        household = Household(household_id, solar_capacity, battery_size, demand_pattern)
+        household = Household(household_id, solar_capacity, battery_size, demand_pattern, user_type=user_type)
         engine.add_household(household)
     
     # Generate weather conditions for 3 days
@@ -426,4 +441,4 @@ if __name__ == "__main__":
     print(f"Total energy generated: {status['total_generated']:.2f} kWh")
     print(f"Total energy consumed: {status['total_consumed']:.2f} kWh")
     print(f"Total energy traded: {status['total_traded']:.2f} kWh")
-    print(f"Current roles - Sellers: {status['sellers']}, Buyers: {status['buyers']}, Idle: {status['idle']}") 
+    print(f"Current roles - Sellers: {status['sellers']}, Buyers: {status['buyers']}, Idle: {status['idle']}")
