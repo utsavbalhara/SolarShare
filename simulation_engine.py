@@ -38,8 +38,7 @@ class Household:
                  solar_capacity: float, 
                  battery_size: float, 
                  demand_pattern: List[float],
-                 initial_battery_level: float = 0.5,
-                 user_type: str = "standard"):
+                 initial_battery_level: float = 0.5):
         """
         Initialize a household digital twin.
         
@@ -49,14 +48,12 @@ class Household:
             battery_size: Battery storage capacity in kWh (5-15 kWh typical)
             demand_pattern: 24-hour demand pattern (kWh per hour)
             initial_battery_level: Initial battery charge level (0.0 to 1.0)
-            user_type: Type of user for priority tagging ("standard", "medical", "water_pump", etc.)
         """
         self.id = id
         self.solar = solar_capacity
         self.battery = battery_size
         self.demand = demand_pattern
         self.role = Role.IDLE
-        self.user_type = user_type
         
         # Battery state
         self.battery_level = initial_battery_level  # 0.0 to 1.0
@@ -160,16 +157,6 @@ class Household:
         else:
             self.role = Role.IDLE
     
-    def get_priority(self) -> int:
-        """
-        Determine household priority for energy trading.
-        Critical users (medical, water_pump) get higher priority.
-        
-        Returns:
-            int: Priority value (1 for critical users, 0 for others)
-        """
-        return 1 if self.user_type in ["medical", "water_pump"] else 0
-    
     def can_sell_energy(self, amount: float) -> bool:
         """Check if household can sell specified amount of energy"""
         return (self.role == Role.SELLER and 
@@ -227,9 +214,7 @@ class Household:
             'total_generated': self.total_generated,
             'total_consumed': self.total_consumed,
             'total_traded': self.total_traded,
-            'active_crisis': self.active_crisis is not None,
-            'user_type': self.user_type,
-            'priority': self.get_priority()
+            'active_crisis': self.active_crisis is not None
         }
 
 
@@ -411,19 +396,19 @@ def create_sample_community() -> SimulationEngine:
     
     # Create households with different characteristics
     households_data = [
-        ("H001", 3.5, 10.0, "typical", "standard"),
-        ("H002", 4.2, 12.0, "high_usage", "standard"),
-        ("H003", 2.8, 8.0, "low_usage", "medical"),  # Medical facility
-        ("H004", 3.0, 10.0, "night_shift", "standard"),
-        ("H005", 4.5, 15.0, "typical", "water_pump"),  # Water pump
-        ("H006", 2.5, 7.0, "low_usage", "standard"),
-        ("H007", 3.8, 11.0, "high_usage", "standard"),
-        ("H008", 3.2, 9.0, "typical", "standard"),
+        ("H001", 3.5, 10.0, "typical"),
+        ("H002", 4.2, 12.0, "high_usage"),
+        ("H003", 2.8, 8.0, "low_usage"),
+        ("H004", 3.0, 10.0, "night_shift"),
+        ("H005", 4.5, 15.0, "typical"),
+        ("H006", 2.5, 7.0, "low_usage"),
+        ("H007", 3.8, 11.0, "high_usage"),
+        ("H008", 3.2, 9.0, "typical"),
     ]
     
-    for household_id, solar_capacity, battery_size, household_type, user_type in households_data:
+    for household_id, solar_capacity, battery_size, household_type in households_data:
         demand_pattern = generate_demand_pattern(household_type)
-        household = Household(household_id, solar_capacity, battery_size, demand_pattern, user_type=user_type)
+        household = Household(household_id, solar_capacity, battery_size, demand_pattern)
         engine.add_household(household)
     
     # Generate weather conditions for 3 days
@@ -454,7 +439,7 @@ class TradingSystem:
         households = list(self.engine.households.values())
         sellers = [h for h in households if h.role == Role.SELLER]
         buyers = [h for h in households if h.role == Role.BUYER]
-        buyers.sort(key=lambda x: (x.get_priority(), -x.battery_level))
+        buyers.sort(key=lambda x: x.battery_level)
         for buyer in buyers:
             for seller in sellers:
                 surplus = seller.current_net_energy

@@ -184,8 +184,8 @@ def test_trading_functionality():
     demand_pattern1 = generate_demand_pattern("low_usage")
     demand_pattern2 = generate_demand_pattern("high_usage")
     
-    household1 = Household("TRADE001", 4.0, 12.0, demand_pattern1)
-    household2 = Household("TRADE002", 2.5, 8.0, demand_pattern2)
+    household1 = Household("TRADE001", 4.0, 12.0, demand_pattern1, initial_battery_level=0.9)
+    household2 = Household("TRADE002", 0.1, 8.0, demand_pattern2, initial_battery_level=0.1)
     
     # Simulate both households at noon (peak solar generation)
     result1 = household1.simulate_hour(12, weather_factor=0.9)
@@ -225,13 +225,17 @@ def test_trading_system_integration():
     # Add two households: one seller, one buyer
     demand_pattern_seller = [0.5]*24
     demand_pattern_buyer = [2.0]*24
-    seller = Household("SELLER1", 4.0, 12.0, demand_pattern_seller, initial_battery_level=1.0)
-    buyer = Household("BUYER1", 2.0, 8.0, demand_pattern_buyer, initial_battery_level=0.0)
+    seller = Household("SELLER1", 4.0, 12.0, demand_pattern_seller, initial_battery_level=0.9)
+    buyer = Household("BUYER1", 2.0, 8.0, demand_pattern_buyer, initial_battery_level=0.1)
     engine.add_household(seller)
     engine.add_household(buyer)
     engine.generate_weather_conditions(days=1)
     engine.initialize_trading_system()
-    # Simulate one hour (should trigger trading)
+    # Simulate up to hour 12 to ensure sunny conditions
+    for _ in range(12):
+        engine.simulate_step()
+
+    # Simulate one more hour (should trigger trading)
     engine.simulate_step()
     # Check transaction history
     ts = engine.trading_system
