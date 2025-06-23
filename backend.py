@@ -41,11 +41,23 @@ def get_simulation_state():
 
 # Metrics calculation endpoint
 @app.get("/metrics")
-def calculate_metrics():
-    trades = get_trades()
-    savings = sum(trade["kwh"] * 3.5 for trade in trades)  # ₹3.5/kWh baseline
-    co2_reduced = sum(trade["kwh"] * 0.8 for trade in trades)  # 0.8 kg CO2 per kWh
-    return {"savings": savings, "co2_reduced": co2_reduced}
+def get_latest_metrics():
+    """Returns the latest metrics from the simulation"""
+    if not os.path.exists(HOUSEHOLD_STATE_FILE):
+        return JSONResponse(content={"error": "Simulation data not found."}, status_code=404)
+    
+    with open(HOUSEHOLD_STATE_FILE, "r") as f:
+        try:
+            log_data = json.load(f)
+            if not log_data:
+                return JSONResponse(content={"error": "No simulation data available yet."}, status_code=404)
+            
+            latest_entry = log_data[-1]
+            metrics = latest_entry.get("metrics", {})
+            return JSONResponse(content=metrics)
+            
+        except (json.JSONDecodeError, IndexError):
+            return JSONResponse(content={"error": "Invalid simulation data format."}, status_code=500)
 
 # WebSocket endpoint for real-time grid data
 @app.websocket("/grid-data")

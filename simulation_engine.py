@@ -27,6 +27,80 @@ class CrisisEvent:
     end_hour: int
 
 
+class MetricsCollector:
+    """Collects and calculates community-wide energy metrics"""
+    def __init__(self):
+        self.energy_traded = 0.0
+        self.cost_savings = 0.0
+        self.co2_reduced = 0.0
+        self.resilience = 50.0  # Start at 50% resilience
+        
+        # Previous values for delta calculations
+        self.prev_energy = 0.0
+        self.prev_savings = 0.0
+        self.prev_co2 = 0.0
+        self.prev_resilience = 50.0
+        
+        # Constants
+        self.GRID_PRICE = 0.20  # $/kWh
+        self.GRID_EMISSIONS = 0.5  # kg CO2/kWh
+
+    def update(self, engine, trades: list):
+        """Update metrics based on simulation state and trades"""
+        # Update cumulative metrics
+        hourly_energy = sum(trade["kwh"] for trade in trades)
+        self.energy_traded += hourly_energy
+        self.cost_savings += hourly_energy * self.GRID_PRICE
+        self.co2_reduced += hourly_energy * self.GRID_EMISSIONS
+        
+        # Calculate resilience score (0-100)
+        battery_levels = [h.battery_level for h in engine.households.values()]
+        avg_battery = sum(battery_levels) / len(battery_levels) if battery_levels else 0
+        trading_activity = min(1.0, len(trades) / 5)  # Scale with trades
+        
+        num_households = len(engine.households)
+        if num_households > 0:
+            buyer_ratio = len([h for h in engine.households.values() if h.role == Role.BUYER]) / num_households
+        else:
+            buyer_ratio = 0
+
+        self.resilience = min(100, max(0, (
+            avg_battery * 50 +  # 50% weight to battery levels
+            trading_activity * 30 +  # 30% weight to trading activity
+            (1 - buyer_ratio) * 20  # 20% weight to buyers
+        )))
+
+    def get_deltas(self):
+        """Calculate hourly changes for all metrics"""
+        return {
+            "energy": self.energy_traded - self.prev_energy,
+            "savings": self.cost_savings - self.prev_savings,
+            "co2": self.co2_reduced - self.prev_co2,
+            "resilience": self.resilience - self.prev_resilience
+        }
+
+    def finalize_hour(self):
+        """Store current values as previous for next delta calculation"""
+        self.prev_energy = self.energy_traded
+        self.prev_savings = self.cost_savings
+        self.prev_co2 = self.co2_reduced
+        self.prev_resilience = self.resilience
+
+    def get_metrics(self) -> dict:
+        """Get metrics in API format"""
+        deltas = self.get_deltas()
+        return {
+            "energy_traded": round(self.energy_traded, 1),
+            "cost_savings": round(self.cost_savings, 1),
+            "co2_reduced": round(self.co2_reduced, 1),
+            "resilience": round(self.resilience),
+            "delta_energy": f"+{deltas['energy']:.1f}" if deltas['energy'] >= 0 else f"{deltas['energy']:.1f}",
+            "delta_savings": f"+{deltas['savings']:.1f}" if deltas['savings'] >= 0 else f"{deltas['savings']:.1f}",
+            "delta_co2": f"+{deltas['co2']:.1f}" if deltas['co2'] >= 0 else f"{deltas['co2']:.1f}",
+            "delta_resilience": f"+{deltas['resilience']:.0f}" if deltas['resilience'] >= 0 else f"{deltas['resilience']:.0f}"
+        }
+
+
 class Household:
     """
     Digital twin representation of a household with solar panels and battery storage.
@@ -201,29 +275,37 @@ class Household:
     
     def trade_energy(self, amount: float, price: float, partner_id: str):
         """Execute energy trade with another household"""
-        if self.role == Role.SELLER and self.can_sell_energy(amount):
-            self.current_net_energy -= amount
-            self.total_traded += amount
-            self.trading_history.append({
-                'hour': self.current_hour,
-                'type': 'sell',
-                'amount': amount,
-                'price': price,
-                'partner': partner_id
-            })
-            return True
+        if self.role == Role.SELLER:
+            # Energy sold comes from the battery.
+            # To provide 'amount' kWh, we need to draw more from the battery due to efficiency losses.
+            kwh_drawn_from_battery = amount / self.battery_efficiency
             
-        elif self.role == Role.BUYER and self.can_buy_energy(amount):
-            self.current_net_energy += amount
-            self.total_traded -= amount
-            self.trading_history.append({
-                'hour': self.current_hour,
-                'type': 'buy',
-                'amount': amount,
-                'price': price,
-                'partner': partner_id
-            })
-            return True
+            # Check if there's enough charge
+            if self.battery_level * self.battery >= kwh_drawn_from_battery:
+                self.battery_level -= kwh_drawn_from_battery / self.battery
+                self.current_net_energy -= amount
+                self.total_traded += amount
+                self.trading_history.append({
+                    'hour': self.current_hour, 'type': 'sell', 'amount': amount,
+                    'price': price, 'partner': partner_id
+                })
+                return True
+            
+        elif self.role == Role.BUYER:
+            # Energy bought goes into the battery.
+            # We lose some energy during charging due to efficiency.
+            kwh_stored_in_battery = amount * self.battery_efficiency
+
+            # Check if there's enough capacity
+            if (1.0 - self.battery_level) * self.battery >= kwh_stored_in_battery:
+                self.battery_level += kwh_stored_in_battery / self.battery
+                self.current_net_energy += amount
+                self.total_traded += amount
+                self.trading_history.append({
+                    'hour': self.current_hour, 'type': 'buy', 'amount': amount,
+                    'price': price, 'partner': partner_id
+                })
+                return True
             
         return False
     
@@ -283,6 +365,7 @@ class SimulationEngine:
         self.trading_system = None  # Will be initialized after households are added
         self.weather_fetcher = weather_fetcher
         self.weather_cache = {}
+        self.metrics = MetricsCollector()
         
     def add_household(self, household: Household):
         """Add a household to the simulation"""
@@ -441,6 +524,11 @@ class SimulationEngine:
         
         # Add trades to step results for external logging
         step_results['trades'] = trades_this_hour
+        
+        # Update metrics collector
+        self.metrics.update(self, trades_this_hour)
+        self.metrics.finalize_hour()
+        step_results['metrics'] = self.metrics.get_metrics()
         
         # Clear expired crises
         for household in self.households.values():
@@ -750,7 +838,9 @@ if __name__ == "__main__":
             output_data = {
                 "timestamp": timestamp,
                 "households": households_data,
-                "trades": result.get('trades', [])
+                "trades": result.get('trades', []),
+                "weather": result['raw_weather'],
+                "metrics": result.get('metrics', {})
             }
 
             # Read current log, append new entry, and write back
