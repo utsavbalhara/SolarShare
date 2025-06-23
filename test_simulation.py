@@ -14,6 +14,7 @@ from simulation_engine import (
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import os
 
 
 def test_basic_simulation():
@@ -27,7 +28,7 @@ def test_basic_simulation():
     print(f"Household ID: {household.id}")
     print(f"Solar Capacity: {household.solar} kW")
     print(f"Battery Size: {household.battery} kWh")
-    print(f"Initial Battery Level: {household.battery_level:.2f}")
+    print(f"Initial Stored Energy: {household.stored_energy:.2f}%")
     
     # Simulate a few hours
     for hour in range(6, 18):  # 6 AM to 6 PM
@@ -41,7 +42,7 @@ def test_basic_simulation():
               f"Demand={result['demand']:.2f}kW, "
               f"Net={result['net_energy']:.2f}kW, "
               f"Role={result['role']}, "
-              f"Battery={result['battery_level']:.2f}")
+              f"Stored Energy={result['stored_energy']:.2f}%")
 
 
 def test_community_simulation():
@@ -163,15 +164,15 @@ def visualize_simulation(engine, results):
     
     # Plot 4: Individual household battery levels
     household_ids = list(engine.households.keys())
-    battery_levels = []
+    stored_energy_levels = []
     for household_id in household_ids:
         household = engine.households[household_id]
-        battery_levels.append(household.battery_level)
+        stored_energy_levels.append(household.stored_energy)
     
-    ax4.bar(household_ids, battery_levels, color='skyblue', alpha=0.7)
+    ax4.bar(household_ids, stored_energy_levels, color='skyblue', alpha=0.7)
     ax4.set_xlabel('Household ID')
-    ax4.set_ylabel('Battery Level')
-    ax4.set_title('Final Battery Levels')
+    ax4.set_ylabel('Stored Energy (%)')
+    ax4.set_title('Final Stored Energy Levels')
     ax4.tick_params(axis='x', rotation=45)
     ax4.grid(True, alpha=0.3)
     
@@ -193,6 +194,13 @@ def test_trading_system_integration():
     engine.add_household(buyer)
     # Weather is now handled dynamically by the engine
     engine.initialize_trading_system()
+    ts = engine.trading_system
+
+    # Clear ledger for a clean test run
+    if os.path.exists(ts.ledger_file):
+        os.remove(ts.ledger_file)
+    ts._initialize_ledger()
+
     # Simulate up to hour 12 to ensure sunny conditions
     for _ in range(12):
         engine.simulate_step()
@@ -200,9 +208,6 @@ def test_trading_system_integration():
     # Simulate one more hour (should trigger trading)
     engine.simulate_step()
     # Check transaction history
-    ts = engine.trading_system
-
-    trades = ts.match_trades(engine.current_hour)
     
     # Read and print the ledger file
     ledger = pd.read_csv(ts.ledger_file)

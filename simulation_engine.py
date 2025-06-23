@@ -53,9 +53,9 @@ class MetricsCollector:
         self.cost_savings += hourly_energy * self.GRID_PRICE
         self.co2_reduced += hourly_energy * self.GRID_EMISSIONS
         
-        # Calculate resilience score (0-100)
-        battery_levels = [h.battery_level for h in engine.households.values()]
-        avg_battery = sum(battery_levels) / len(battery_levels) if battery_levels else 0
+        # Calculate resilience score (0-100) using stored energy percentages
+        stored_energy_levels = [h.stored_energy for h in engine.households.values()]
+        avg_stored_energy = sum(stored_energy_levels) / len(stored_energy_levels) if stored_energy_levels else 0
         trading_activity = min(1.0, len(trades) / 5)  # Scale with trades
         
         num_households = len(engine.households)
@@ -65,7 +65,7 @@ class MetricsCollector:
             buyer_ratio = 0
 
         self.resilience = min(100, max(0, (
-            avg_battery * 50 +  # 50% weight to battery levels
+            avg_stored_energy * 0.5 +  # 50% weight to stored energy levels
             trading_activity * 30 +  # 30% weight to trading activity
             (1 - buyer_ratio) * 20  # 20% weight to buyers
         )))
@@ -145,9 +145,9 @@ class Household:
             "north": 0.6
         }
         
-        # Battery state
-        self.battery_level = initial_battery_level  # 0.0 to 1.0
-        self.battery_efficiency = 0.95  # 95% round-trip efficiency
+        # Battery state - now using percentage (0-100%)
+        self.stored_energy = initial_battery_level * 100  # 0.0 to 100.0 percentage
+        self.battery_efficiency = 1.0  # 100% efficiency (simplified)
         
         # Energy tracking
         self.total_generated = 0.0
@@ -158,7 +158,7 @@ class Household:
         self.current_hour = 0
         self.current_solar_gen = 0.0
         self.current_demand = 0.0
-        self.current_net_energy = 0.0
+        self.current_net_energy = 0.0  # For internal calculations only, not for trading
         
         # Trading history
         self.trading_history = []
@@ -218,72 +218,75 @@ class Household:
             'solar_generation': self.current_solar_gen,
             'demand': self.current_demand,
             'net_energy': self.current_net_energy,
-            'battery_level': self.battery_level,
+            'stored_energy': self.stored_energy,  # Now in percentage (0-100)
             'role': self.role.value,
             'weather_factor': weather_factor
         }
     
     def _update_battery(self):
-        """Update battery state based on net energy"""
+        """Update stored energy based on net energy (100% efficiency)"""
         if self.current_net_energy > 0:
-            # Excess energy - charge battery
-            charge_amount = min(
-                self.current_net_energy * self.battery_efficiency,
-                (1.0 - self.battery_level) * self.battery
-            )
-            self.battery_level += charge_amount / self.battery
-            self.current_net_energy -= charge_amount / self.battery_efficiency
+            # Excess energy - store in battery (100% efficiency)
+            # Convert kWh to percentage: (kWh / battery_capacity) * 100
+            storage_percentage_available = 100.0 - self.stored_energy
+            max_storable_kwh = (storage_percentage_available / 100.0) * self.battery
+            
+            energy_to_store = min(self.current_net_energy, max_storable_kwh)
+            storage_percentage_gain = (energy_to_store / self.battery) * 100.0
+            
+            self.stored_energy += storage_percentage_gain
+            self.current_net_energy -= energy_to_store
             
         elif self.current_net_energy < 0:
-            # Energy deficit - discharge battery
-            discharge_amount = min(
-                abs(self.current_net_energy),
-                self.battery_level * self.battery * self.battery_efficiency
-            )
-            self.battery_level -= discharge_amount / (self.battery * self.battery_efficiency)
-            self.current_net_energy += discharge_amount
+            # Energy deficit - draw from stored energy (100% efficiency)
+            energy_needed = abs(self.current_net_energy)
+            available_stored_kwh = (self.stored_energy / 100.0) * self.battery
+            
+            energy_from_storage = min(energy_needed, available_stored_kwh)
+            storage_percentage_loss = (energy_from_storage / self.battery) * 100.0
+            
+            self.stored_energy -= storage_percentage_loss
+            self.current_net_energy += energy_from_storage
     
     def _update_role(self):
-        """Update household role with more balanced thresholds for active trading"""
-        if self.energy_hoarder:
-            # Hoarders are more selective but still trade
-            if self.battery_level > 0.80:
-                self.role = Role.SELLER
-            elif self.battery_level < 0.40:
-                self.role = Role.BUYER
-            else:
-                self.role = Role.IDLE
+        """Update household role based on stored energy only (storage-first trading)"""
+        # Seller: Has stored energy above 20% minimum reserve
+        if self.stored_energy > 20.0:
+            self.role = Role.SELLER
+        # Buyer: Has energy deficit AND has storage capacity available
+        elif self.current_net_energy < 0 and self.stored_energy < 100.0:
+            self.role = Role.BUYER
+        # Idle: At minimum reserve OR no energy need/capacity
         else:
-            # More aggressive trading thresholds for balanced market
-            if self.current_net_energy > 0.3 or self.battery_level > 0.75:  # Willing to sell with modest surplus
-                self.role = Role.SELLER
-            elif self.current_net_energy < -0.2 or self.battery_level < 0.50:  # Willing to buy earlier
-                self.role = Role.BUYER
-            else:
-                self.role = Role.IDLE
+            self.role = Role.IDLE
     
     def can_sell_energy(self, amount: float) -> bool:
-        """More lenient selling conditions"""
-        return (self.role == Role.SELLER and 
-                self.current_net_energy >= amount and
-                self.battery_level > 0.05)  # Minimal reserve
+        """Check if household can sell energy from stored reserves"""
+        # Must be seller role and have stored energy above 20% minimum reserve
+        if self.role != Role.SELLER or self.stored_energy <= 20.0:
+            return False
+        
+        # Check if we have enough stored energy for the trade
+        amount_percentage = (amount / self.battery) * 100.0
+        return (self.stored_energy - amount_percentage) >= 20.0
     
     def can_buy_energy(self, amount: float) -> bool:
-        """More lenient buying conditions"""
-        return (self.role == Role.BUYER and
-                self.battery_level < 0.95)  # Allow near-full charging
+        """Check if household can buy energy (has storage capacity)"""
+        if self.role != Role.BUYER:
+            return False
+        
+        # Check if we have capacity to store the energy
+        amount_percentage = (amount / self.battery) * 100.0
+        return (self.stored_energy + amount_percentage) <= 100.0
     
     def trade_energy(self, amount: float, price: float, partner_id: str):
-        """Execute energy trade with another household"""
+        """Execute energy trade using stored energy only (100% efficiency)"""
+        amount_percentage = (amount / self.battery) * 100.0
+        
         if self.role == Role.SELLER:
-            # Energy sold comes from the battery.
-            # To provide 'amount' kWh, we need to draw more from the battery due to efficiency losses.
-            kwh_drawn_from_battery = amount / self.battery_efficiency
-            
-            # Check if there's enough charge
-            if self.battery_level * self.battery >= kwh_drawn_from_battery:
-                self.battery_level -= kwh_drawn_from_battery / self.battery
-                self.current_net_energy -= amount
+            # Sell from stored energy - check if we can maintain 20% reserve
+            if (self.stored_energy - amount_percentage) >= 20.0:
+                self.stored_energy -= amount_percentage
                 self.total_traded += amount
                 self.trading_history.append({
                     'hour': self.current_hour, 'type': 'sell', 'amount': amount,
@@ -292,14 +295,9 @@ class Household:
                 return True
             
         elif self.role == Role.BUYER:
-            # Energy bought goes into the battery.
-            # We lose some energy during charging due to efficiency.
-            kwh_stored_in_battery = amount * self.battery_efficiency
-
-            # Check if there's enough capacity
-            if (1.0 - self.battery_level) * self.battery >= kwh_stored_in_battery:
-                self.battery_level += kwh_stored_in_battery / self.battery
-                self.current_net_energy += amount
+            # Buy into stored energy - check if we have capacity
+            if (self.stored_energy + amount_percentage) <= 100.0:
+                self.stored_energy += amount_percentage
                 self.total_traded += amount
                 self.trading_history.append({
                     'hour': self.current_hour, 'type': 'buy', 'amount': amount,
@@ -322,7 +320,7 @@ class Household:
         return {
             'id': self.id,
             'role': self.role.value,
-            'battery_level': self.battery_level,
+            'stored_energy': self.stored_energy,  # Now in percentage (0-100)
             'current_net_energy': self.current_net_energy,
             'total_generated': self.total_generated,
             'total_consumed': self.total_consumed,
@@ -496,7 +494,7 @@ class SimulationEngine:
                     step_results['households'][household.id].update({
                         'demand': household.current_demand,
                         'net_energy': household.current_net_energy,
-                        'battery_level': household.battery_level,
+                        'stored_energy': household.stored_energy,
                         'role': household.role.value
                     })
         
@@ -513,7 +511,7 @@ class SimulationEngine:
                     step_results['households'][household.id].update({
                         'demand': household.current_demand,
                         'net_energy': household.current_net_energy,
-                        'battery_level': household.battery_level,
+                        'stored_energy': household.stored_energy,
                         'role': household.role.value
                     })
 
@@ -686,20 +684,20 @@ class TradingSystem:
         executed_trades = []
         households = list(self.engine.households.values())
         
-        # Get active participants with more flexible criteria
-        sellers = [h for h in households if h.role == Role.SELLER and h.current_net_energy > 0.05]
-        buyers = [h for h in households if h.role == Role.BUYER and h.current_net_energy < -0.05]
+        # Get active participants based on storage-first criteria
+        sellers = [h for h in households if h.role == Role.SELLER and h.stored_energy > 20.0]
+        buyers = [h for h in households if h.role == Role.BUYER and h.stored_energy < 100.0]
         
         if not sellers or not buyers:
             return executed_trades
         
         # Sort by urgency and capacity
-        sellers.sort(key=lambda x: (x.battery_level, x.current_net_energy), reverse=True)
-        buyers.sort(key=lambda x: (x.battery_level, -x.current_net_energy))  # Low battery, high deficit first
+        sellers.sort(key=lambda x: x.stored_energy, reverse=True)  # High stored energy first
+        buyers.sort(key=lambda x: (x.stored_energy, -x.current_net_energy))  # Low stored energy, high deficit first
         
-        # Dynamic pricing based on supply/demand ratio
-        supply = sum(max(0, s.current_net_energy) for s in sellers)
-        demand = sum(abs(min(0, b.current_net_energy)) for b in buyers)
+        # Dynamic pricing based on supply/demand ratio (using available stored energy)
+        supply = sum((h.stored_energy - 20.0) / 100.0 * h.battery for h in sellers)  # Available kWh above reserve
+        demand = sum(abs(min(0, h.current_net_energy)) for h in buyers)  # Energy deficit in kWh
         
         if demand > 0:
             supply_demand_ratio = supply / demand
@@ -723,24 +721,25 @@ class TradingSystem:
                     continue
                     
                 for seller in sellers[:]:
-                    if seller.current_net_energy <= 0.05:  # Seller depleted
+                    if seller.stored_energy <= 20.0:  # Seller at minimum reserve
                         sellers.remove(seller)
                         continue
                         
-                    # Calculate trade amount - more flexible sizing
+                    # Calculate trade amount based on stored energy and need
                     buyer_need = abs(buyer.current_net_energy)
-                    seller_available = seller.current_net_energy
+                    # Available stored energy above 20% reserve (in kWh)
+                    seller_available_kwh = ((seller.stored_energy - 20.0) / 100.0) * seller.battery
                     
-                    # Scale trade size based on battery levels and round
+                    # Scale trade size based on storage levels and round
                     if round_num == 0:  # First round - larger trades
                         max_trade = min(
-                            seller_available * 0.6,  # Up to 60% of available
-                            buyer_need * 0.8,        # Up to 80% of need
-                            2.0                       # Max 2 kWh per trade
+                            seller_available_kwh * 0.6,  # Up to 60% of available stored energy
+                            buyer_need * 0.8,            # Up to 80% of need
+                            2.0                           # Max 2 kWh per trade
                         )
                     else:  # Later rounds - smaller trades
                         max_trade = min(
-                            seller_available * 0.4,
+                            seller_available_kwh * 0.4,
                             buyer_need * 0.6,
                             1.0
                         )
@@ -828,7 +827,7 @@ if __name__ == "__main__":
                 households_data.append({
                     "id": hid,
                     "role": hdata['role'],
-                    "battery": int(hdata['battery_level'] * 100),
+                    "battery": int(hdata['stored_energy']),  # Already in percentage
                     "solar": hdata['solar_generation'],
                     "demand": hdata['demand'],
                     "net_energy": hdata['net_energy']
