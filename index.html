@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolarShare - Community Energy Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">
+                    <span class="title-icon">☀️</span>
+                    SolarShare
+                    <span class="title-subtitle">Community Energy Dashboard</span>
+                </h1>
+                <div class="status-indicator" id="connectionStatus">
+                    <div class="status-dot"></div>
+                    <span>Connected</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Grid -->
+        <main class="dashboard-grid">
+            <!-- Weather Panel -->
+            <section class="card weather-card">
+                <div class="card-header">
+                    <h2 class="card-title">Weather Conditions</h2>
+                    <div class="weather-icon" id="weatherIcon">🌤️</div>
+                </div>
+                <div class="weather-content">
+                    <div class="weather-main">
+                        <div class="temperature" id="temperature">22.5°C</div>
+                        <div class="weather-desc" id="weatherDesc">Partly Cloudy</div>
+                    </div>
+                    <div class="weather-details">
+                        <div class="weather-item">
+                            <span class="weather-label">Solar Radiation</span>
+                            <span class="weather-value" id="solarRadiation">800 W/m²</span>
+                        </div>
+                        <div class="weather-item">
+                            <span class="weather-label">Cloud Cover</span>
+                            <span class="weather-value" id="cloudCover">30%</span>
+                        </div>
+                        <div class="weather-item">
+                            <span class="weather-label">Humidity</span>
+                            <span class="weather-value" id="humidity">65%</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Household Roles Card -->
+            <section class="card households-card">
+                <div class="card-header">
+                    <h2 class="card-title">Household Energy Flow</h2>
+                    <div class="energy-flow-legend">
+                        <div class="legend-item seller">
+                            <div class="legend-dot"></div>
+                            <span>Seller</span>
+                        </div>
+                        <div class="legend-item buyer">
+                            <div class="legend-dot"></div>
+                            <span>Buyer</span>
+                        </div>
+                        <div class="legend-item idle">
+                            <div class="legend-dot"></div>
+                            <span>Idle</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="households-grid" id="householdsGrid">
+                    <!-- Households will be populated dynamically -->
+                </div>
+                <div class="energy-flows" id="energyFlows">
+                    <!-- SVG for energy flow arrows -->
+                    <svg id="flowSvg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <!-- Flow arrows will be added dynamically -->
+                    </svg>
+                </div>
+            </section>
+
+            <!-- Impact Metrics Card -->
+            <section class="card metrics-card">
+                <div class="card-header">
+                    <h2 class="card-title">Impact Metrics</h2>
+                    <div class="metrics-period" id="metricsPeriod">Last 24 Hours</div>
+                </div>
+                <div class="metrics-grid">
+                    <div class="metric-item">
+                        <div class="metric-icon energy">⚡</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="energyTraded">0</div>
+                            <div class="metric-label">kWh Traded</div>
+                            <div class="metric-delta" id="energyDelta">+0.0</div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-icon savings">💰</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="costSavings">$0</div>
+                            <div class="metric-label">Cost Savings</div>
+                            <div class="metric-delta" id="savingsDelta">+$0.0</div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-icon co2">🌱</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="co2Reduced">0</div>
+                            <div class="metric-label">kg CO₂ Saved</div>
+                            <div class="metric-delta" id="co2Delta">+0.0</div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-icon resilience">🛡️</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="resilience">0%</div>
+                            <div class="metric-label">Resilience Score</div>
+                            <div class="metric-delta" id="resilienceDelta">+0</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="metricsChart"></canvas>
+                </div>
+            </section>
+
+            <!-- Activity Feed -->
+            <section class="card activity-card">
+                <div class="card-header">
+                    <h2 class="card-title">Recent Activity</h2>
+                    <div class="activity-time">Last Updated: <span id="lastUpdated">--:--</span></div>
+                </div>
+                <div class="activity-feed" id="activityFeed">
+                    <!-- Activity items will be populated dynamically -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Household Detail Modal -->
+    <div class="modal-overlay" id="householdModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">Household Details</h3>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Household details will be populated dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <div class="loading-text">Connecting to SolarShare...</div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

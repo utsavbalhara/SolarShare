@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Metrics</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a2e; color: white; }
+        .metric { margin: 10px 0; padding: 10px; background: #16213e; border-radius: 8px; }
+        .value { font-size: 24px; font-weight: bold; color: #38A169; }
+        .delta { font-size: 14px; padding: 4px 8px; border-radius: 4px; margin-left: 10px; }
+        .delta.positive { background: rgba(56, 161, 105, 0.2); color: #68D391; }
+    </style>
+</head>
+<body>
+    <h1>SolarShare Metrics Test</h1>
+    
+    <div class="metric">
+        <div>Energy Traded</div>
+        <span class="value" id="energyTraded">0 kWh</span>
+        <span class="delta" id="energyDelta">+0.0</span>
+    </div>
+    
+    <div class="metric">
+        <div>Cost Savings</div>
+        <span class="value" id="costSavings">$0</span>
+        <span class="delta" id="savingsDelta">+$0.0</span>
+    </div>
+    
+    <div class="metric">
+        <div>CO₂ Reduced</div>
+        <span class="value" id="co2Reduced">0 kg</span>
+        <span class="delta" id="co2Delta">+0.0</span>
+    </div>
+    
+    <div class="metric">
+        <div>Resilience</div>
+        <span class="value" id="resilience">0%</span>
+        <span class="delta" id="resilienceDelta">+0</span>
+    </div>
+    
+    <button onclick="loadMetrics()">Load Metrics</button>
+    <button onclick="loadMetricsEvery5Sec()">Auto Update</button>
+    
+    <script>
+        let autoUpdate = false;
+        
+        function animateCounter(elementId, targetValue, suffix = '', prefix = '') {
+            const element = document.getElementById(elementId);
+            if (!element) {
+                console.error(`Element with id '${elementId}' not found`);
+                return;
+            }
+            
+            console.log(`Animating ${elementId} to ${targetValue}`);
+            
+            const currentValue = parseFloat(element.textContent.replace(/[^0-9.-]/g, '')) || 0;
+            
+            // If values are the same, just update immediately
+            if (Math.abs(targetValue - currentValue) < 0.01) {
+                element.textContent = prefix + targetValue.toFixed(1) + suffix;
+                return;
+            }
+            
+            const increment = (targetValue - currentValue) / 30; // 30 frames
+            let currentStep = 0;
+            
+            const animate = () => {
+                if (currentStep < 30) {
+                    const value = currentValue + (increment * currentStep);
+                    element.textContent = prefix + value.toFixed(1) + suffix;
+                    currentStep++;
+                    requestAnimationFrame(animate);
+                } else {
+                    element.textContent = prefix + targetValue.toFixed(1) + suffix;
+                }
+            };
+            
+            animate();
+        }
+        
+        function updateDelta(elementId, deltaValue, prefix = '') {
+            const element = document.getElementById(elementId);
+            element.textContent = prefix + deltaValue;
+            
+            // Update class for color
+            element.className = 'delta';
+            if (deltaValue.startsWith('+') && parseFloat(deltaValue.substring(1)) > 0) {
+                element.classList.add('positive');
+            } else if (deltaValue.startsWith('-')) {
+                element.classList.add('negative');
+            }
+        }
+        
+        async function loadMetrics() {
+            try {
+                console.log('Fetching metrics...');
+                const response = await fetch('http://localhost:8000/metrics');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const metrics = await response.json();
+                console.log('Received metrics:', metrics);
+                
+                // Update metric values with animation
+                animateCounter('energyTraded', parseFloat(metrics.energy_traded || 0), ' kWh');
+                animateCounter('costSavings', parseFloat(metrics.cost_savings || 0), '', '$');
+                animateCounter('co2Reduced', parseFloat(metrics.co2_reduced || 0), ' kg');
+                animateCounter('resilience', parseInt(metrics.resilience || 0), '%');
+                
+                // Update deltas
+                updateDelta('energyDelta', metrics.delta_energy || '+0.0');
+                updateDelta('savingsDelta', metrics.delta_savings || '+0.0', '$');
+                updateDelta('co2Delta', metrics.delta_co2 || '+0.0');
+                updateDelta('resilienceDelta', metrics.delta_resilience || '+0');
+                
+            } catch (error) {
+                console.error('Failed to load metrics:', error);
+                alert('Failed to load metrics. Make sure backend is running on port 8000.');
+            }
+        }
+        
+        function loadMetricsEvery5Sec() {
+            if (autoUpdate) {
+                autoUpdate = false;
+                return;
+            }
+            autoUpdate = true;
+            const interval = setInterval(() => {
+                if (!autoUpdate) {
+                    clearInterval(interval);
+                    return;
+                }
+                loadMetrics();
+            }, 5000);
+            loadMetrics(); // Load immediately
+        }
+        
+        // Load metrics when page loads
+        window.addEventListener('load', loadMetrics);
+    </script>
+</body>
+</html>

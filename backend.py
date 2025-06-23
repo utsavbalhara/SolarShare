@@ -72,15 +72,22 @@ def calculate_metrics_deltas(current_metrics, previous_metrics):
         return {"delta_energy": "+0.0", "delta_savings": "+0.0", "delta_co2": "+0.0", "delta_resilience": "+0"}
     
     deltas = {}
-    for key in ['energy_traded', 'cost_savings', 'co2_reduced', 'resilience']:
+    delta_keys = {
+        'energy_traded': 'delta_energy',
+        'cost_savings': 'delta_savings', 
+        'co2_reduced': 'delta_co2',
+        'resilience': 'delta_resilience'
+    }
+    
+    for key, delta_key in delta_keys.items():
         current = current_metrics.get(key, 0)
         previous = previous_metrics.get(key, 0)
         delta = current - previous
         prefix = "+" if delta >= 0 else ""
         if key == 'resilience':
-            deltas[f"delta_{key}"] = f"{prefix}{int(delta)}"
+            deltas[delta_key] = f"{prefix}{int(delta)}"
         else:
-            deltas[f"delta_{key}"] = f"{prefix}{delta:.1f}"
+            deltas[delta_key] = f"{prefix}{delta:.1f}"
     
     return deltas
 
