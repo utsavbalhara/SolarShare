@@ -156,21 +156,36 @@ async def state_websocket(websocket: WebSocket):
     try:
         while True:
             household_state = get_household_state()
+            
             if household_state and 'households' in household_state:
+                # Get weather data - with fallback defaults
+                weather_data = household_state.get("weather", {
+                    "temp": 22.5,
+                    "clouds": 30,
+                    "solar_radiation": 800,
+                    "humidity": 65
+                })
+                
                 # Format data for frontend
                 state_data = {
                     "timestamp": household_state.get("timestamp", datetime.now().isoformat()),
                     "households": household_state.get("households", []),
                     "trades": household_state.get("trades", []),
-                    "weather": household_state.get("weather", {
-                        "temp": 22.5,
-                        "clouds": 30,
-                        "solar_radiation": 800,
-                        "humidity": 65
-                    })
+                    "weather": weather_data
                 }
+                
+                # Log once every 30 seconds (15 WebSocket calls) to verify data flow
+                if hasattr(state_websocket, '_call_count'):
+                    state_websocket._call_count += 1
+                else:
+                    state_websocket._call_count = 1
+                    
+                if state_websocket._call_count % 15 == 0:
+                    print(f"Backend: Sending timestamp: {state_data['timestamp']}")
+                    print(f"Backend: Weather temp: {weather_data.get('temp', 'N/A')}°C")
+                
                 await websocket.send_json(state_data)
-            await asyncio.sleep(2)  # Update every 2 seconds
+            await asyncio.sleep(1)  # Update every 1 second to match simulation frequency
     except Exception as e:
         print(f"State WebSocket closed: {e}")
         await websocket.close()

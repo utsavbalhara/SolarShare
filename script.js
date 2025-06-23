@@ -55,6 +55,14 @@ class SolarShareDashboard {
     }
 
     setupEventListeners() {
+        // Navigation tabs
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const section = tab.dataset.section;
+                this.switchToSection(section);
+            });
+        });
+        
         // Modal close
         document.getElementById('modalClose').addEventListener('click', () => {
             this.closeModal();
@@ -160,6 +168,11 @@ class SolarShareDashboard {
         this.lastUpdateTime = new Date(data.timestamp);
         this.updateLastUpdatedTime();
         
+        // Update simulation time
+        if (data.timestamp) {
+            this.updateSimulationTime(data.timestamp);
+        }
+        
         // Update weather
         if (data.weather) {
             this.updateWeather(data.weather);
@@ -202,33 +215,101 @@ class SolarShareDashboard {
         }
     }
 
+    updateSimulationTime(timestamp) {
+        console.log('DEBUG: Raw timestamp received:', timestamp);
+        const simTime = new Date(timestamp);
+        console.log('DEBUG: Parsed Date object:', simTime);
+        console.log('DEBUG: UTC Hours:', simTime.getUTCHours(), 'UTC Minutes:', simTime.getUTCMinutes());
+        console.log('DEBUG: Local Hours:', simTime.getHours(), 'Local Minutes:', simTime.getMinutes());
+        
+        // Format time in AM/PM format - using UTC to avoid timezone conversion
+        const timeOptions = { 
+            hour: 'numeric', 
+            minute: '2-digit', 
+            hour12: true,
+            timeZone: 'UTC'  // Force UTC to match simulation time
+        };
+        const timeString = simTime.toLocaleTimeString('en-US', timeOptions);
+        console.log('DEBUG: Formatted time string (UTC):', timeString);
+        
+        // Format date
+        const dateOptions = { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric' 
+        };
+        const dateString = simTime.toLocaleDateString('en-US', dateOptions);
+        
+        // Format full date for weather section
+        const fullDateOptions = { 
+            month: 'long', 
+            day: 'numeric', 
+            year: 'numeric' 
+        };
+        const fullDateString = simTime.toLocaleDateString('en-US', fullDateOptions);
+        
+        // Update compact weather card
+        const simTimeHome = document.getElementById('simTimeHome');
+        const simDateHome = document.getElementById('simDateHome');
+        const simTimeFull = document.getElementById('simTimeFull');
+        const simDateFull = document.getElementById('simDateFull');
+        
+        if (simTimeHome) {
+            simTimeHome.textContent = timeString;
+        }
+        
+        if (simDateHome) {
+            simDateHome.textContent = dateString;
+        }
+        
+        // Update full weather section
+        if (simTimeFull) {
+            simTimeFull.textContent = timeString;
+        }
+        
+        if (simDateFull) {
+            simDateFull.textContent = fullDateString;
+        }
+    }
+
     updateWeather(weather) {
         // Update temperature - rounded to 2 decimal places
         const temp = parseFloat(weather.temp || 22.5).toFixed(2);
+        const solarRad = parseFloat(weather.solar_radiation || 800).toFixed(0);
+        const clouds = parseFloat(weather.clouds || 30).toFixed(0);
+        const humidity = parseFloat(weather.humidity || 65).toFixed(0);
+        
+        // Update main weather section
         document.getElementById('temperature').textContent = `${temp}°C`;
-        
-        // Update weather values - rounded to 2 decimal places
-        const solarRad = parseFloat(weather.solar_radiation || 800).toFixed(2);
-        const clouds = parseFloat(weather.clouds || 30).toFixed(2);
-        const humidity = parseFloat(weather.humidity || 65).toFixed(2);
-        
         document.getElementById('solarRadiation').textContent = `${solarRad} W/m²`;
         document.getElementById('cloudCover').textContent = `${clouds}%`;
         document.getElementById('humidity').textContent = `${humidity}%`;
         
-        // Update weather icon based on conditions
-        const iconElement = document.getElementById('weatherIcon');
+        // Update compact weather in home section
+        document.getElementById('temperatureHome').textContent = `${temp}°C`;
+        document.getElementById('solarRadiationHome').textContent = solarRad;
+        document.getElementById('cloudCoverHome').textContent = clouds;
+        
+        // Update weather icon and description
         const cloudsValue = parseFloat(weather.clouds || 30);
+        let icon, desc;
+        
         if (cloudsValue < 20) {
-            iconElement.textContent = '☀️';
-            document.getElementById('weatherDesc').textContent = 'Clear';
+            icon = '☀️';
+            desc = 'Clear';
         } else if (cloudsValue < 60) {
-            iconElement.textContent = '🌤️';
-            document.getElementById('weatherDesc').textContent = 'Partly Cloudy';
+            icon = '🌤️';
+            desc = 'Partly Cloudy';
         } else {
-            iconElement.textContent = '☁️';
-            document.getElementById('weatherDesc').textContent = 'Cloudy';
+            icon = '☁️';
+            desc = 'Cloudy';
         }
+        
+        // Update both weather sections
+        document.getElementById('weatherIcon').textContent = icon;
+        document.getElementById('weatherIconHome').textContent = icon;
+        document.getElementById('weatherDesc').textContent = desc;
+        document.getElementById('weatherDescHome').textContent = desc;
     }
 
     updateHouseholds(households) {
@@ -696,8 +777,29 @@ class SolarShareDashboard {
         document.getElementById('householdModal').classList.add('active');
     }
 
+    switchToSection(sectionName) {
+        // Remove active class from all tabs and sections
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        document.querySelectorAll('.section').forEach(section => {
+            section.classList.remove('active');
+        });
+        
+        // Add active class to selected tab and section
+        document.querySelector(`[data-section="${sectionName}"]`).classList.add('active');
+        document.getElementById(`${sectionName}Section`).classList.add('active');
+    }
+    
     closeModal() {
         document.getElementById('householdModal').classList.remove('active');
+    }
+}
+
+// Global function for section switching
+function switchToSection(sectionName) {
+    if (window.dashboard) {
+        window.dashboard.switchToSection(sectionName);
     }
 }
 

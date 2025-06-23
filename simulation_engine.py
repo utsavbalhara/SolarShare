@@ -392,10 +392,10 @@ class SimulationEngine:
         temp = temp_mean + temp_amplitude * np.sin(2 * np.pi * (hour - 9) / 24)
         temp += random.uniform(-0.5, 0.5)  # Less noise
 
-        # Solar radiation (peaks at noon) - More moderate conditions
+        # Solar radiation (peaks at 3pm) - More moderate conditions
         # Using a cosine function to model daylight hours (approx 6am to 6pm)
         if 6 <= hour <= 18:
-            solar_radiation = max(200, np.cos((hour - 12) * np.pi / 12)) * 800  # More moderate range
+            solar_radiation = max(200, np.cos((hour - 12) * np.pi / 15) * 800)  # More moderate range
             solar_radiation = max(200, solar_radiation + random.uniform(-30, 30))  # Less variation
         else:
             solar_radiation = 0
