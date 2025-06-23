@@ -6,7 +6,7 @@ from enum import Enum
 import time
 import os
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 
 
@@ -38,7 +38,10 @@ class Household:
                  solar_capacity: float, 
                  battery_size: float, 
                  demand_pattern: List[float],
-                 initial_battery_level: float = 0.5):
+                 initial_battery_level: float = 0.5,
+                 orientation: str = "south",
+                 energy_conscious: bool = False,
+                 energy_hoarder: bool = False):
         """
         Initialize a household digital twin.
         
@@ -48,12 +51,25 @@ class Household:
             battery_size: Battery storage capacity in kWh (5-15 kWh typical)
             demand_pattern: 24-hour demand pattern (kWh per hour)
             initial_battery_level: Initial battery charge level (0.0 to 1.0)
+            orientation: Solar panel orientation ("south", "east", "west", "north")
+            energy_conscious: Flag for households that conserve energy
+            energy_hoarder: Flag for households that prefer to store energy
         """
         self.id = id
         self.solar = solar_capacity
         self.battery = battery_size
         self.demand = demand_pattern
         self.role = Role.IDLE
+        self.orientation = orientation
+        self.energy_conscious = energy_conscious
+        self.energy_hoarder = energy_hoarder
+
+        self.orientation_factors = {
+            "south": 1.0,
+            "east": 0.8,
+            "west": 0.8,
+            "north": 0.6
+        }
         
         # Battery state
         self.battery_level = initial_battery_level  # 0.0 to 1.0
@@ -76,13 +92,15 @@ class Household:
         # Crisis state
         self.active_crisis = None
         
-    def simulate_hour(self, hour: int, weather_factor: float = 1.0) -> Dict[str, float]:
+    def simulate_hour(self, hour: int, weather_factor: float, temp_factor: float, humidity: float) -> Dict[str, float]:
         """
         Simulate energy behavior for a specific hour.
         
         Args:
             hour: Hour of day (0-23)
             weather_factor: Weather impact on solar generation (0.0 to 1.0)
+            temp_factor: Temperature impact on demand
+            humidity: Humidity impact on demand
             
         Returns:
             Dictionary with energy metrics for the hour
@@ -91,6 +109,7 @@ class Household:
         
         # Calculate solar generation (peaks at noon)
         base_solar_gen = self.solar * weather_factor * max(0, 1 - abs(12 - hour) / 6)
+        base_solar_gen *= self.orientation_factors[self.orientation]
         
         # Apply crisis effects if active
         if self.active_crisis and self.active_crisis.start_hour <= hour <= self.active_crisis.end_hour:
@@ -98,8 +117,10 @@ class Household:
         
         self.current_solar_gen = base_solar_gen
         
-        # Get hourly demand
-        self.current_demand = self.demand[hour]
+        # Get hourly demand and apply weather effects
+        self.current_demand = self.demand[hour] * temp_factor
+        if humidity > 70:
+            self.current_demand *= 1.1
         
         # Apply crisis effects to demand
         if self.active_crisis and self.active_crisis.start_hour <= hour <= self.active_crisis.end_hour:
@@ -149,24 +170,34 @@ class Household:
             self.current_net_energy += discharge_amount
     
     def _update_role(self):
-        """Update household role based on battery level and current energy state"""
-        if self.battery_level > 0.8 and self.current_net_energy > 0:
-            self.role = Role.SELLER
-        elif self.battery_level < 0.2 and self.current_net_energy < 0:
-            self.role = Role.BUYER
+        """Update household role with more balanced thresholds for active trading"""
+        if self.energy_hoarder:
+            # Hoarders are more selective but still trade
+            if self.battery_level > 0.80:
+                self.role = Role.SELLER
+            elif self.battery_level < 0.40:
+                self.role = Role.BUYER
+            else:
+                self.role = Role.IDLE
         else:
-            self.role = Role.IDLE
+            # More aggressive trading thresholds for balanced market
+            if self.current_net_energy > 0.3 or self.battery_level > 0.75:  # Willing to sell with modest surplus
+                self.role = Role.SELLER
+            elif self.current_net_energy < -0.2 or self.battery_level < 0.50:  # Willing to buy earlier
+                self.role = Role.BUYER
+            else:
+                self.role = Role.IDLE
     
     def can_sell_energy(self, amount: float) -> bool:
-        """Check if household can sell specified amount of energy"""
+        """More lenient selling conditions"""
         return (self.role == Role.SELLER and 
                 self.current_net_energy >= amount and
-                self.battery_level > 0.1)  # Keep some reserve
+                self.battery_level > 0.05)  # Minimal reserve
     
     def can_buy_energy(self, amount: float) -> bool:
-        """Check if household can buy specified amount of energy"""
+        """More lenient buying conditions"""
         return (self.role == Role.BUYER and
-                self.battery_level < 0.9)  # Don't overcharge
+                self.battery_level < 0.95)  # Allow near-full charging
     
     def trade_energy(self, amount: float, price: float, partner_id: str):
         """Execute energy trade with another household"""
@@ -218,41 +249,93 @@ class Household:
         }
 
 
+class SimulationClock:
+    """Manages the simulation's time, advancing in discrete steps."""
+    def __init__(self, start_date="2025-06-23 00:00:00", speed_factor=3600):
+        """
+        Initializes the clock.
+        
+        Args:
+            start_date (str): The simulation's starting date and time.
+            speed_factor (int): How many simulation seconds pass for each real-world second.
+                                Default is 3600 (1 simulated hour per real second).
+        """
+        self.current_time = datetime.strptime(start_date, "%Y-%m-%d %H:%M:%S")
+        self.step_interval = timedelta(seconds=speed_factor)
+
+    def tick(self):
+        """Advances the simulation time by one step."""
+        self.current_time += self.step_interval
+        return self.current_time
+
+
 class SimulationEngine:
     """
     Main simulation engine that manages multiple households and coordinates trading.
     """
     
-    def __init__(self):
+    def __init__(self, weather_fetcher=None):
         self.households: Dict[str, Household] = {}
-        self.current_hour = 0
-        self.weather_conditions = []
+        self.clock = SimulationClock()
+        self.current_hour = self.clock.current_time.hour
         self.crisis_events = []
         self.simulation_log = []
         self.trading_system = None  # Will be initialized after households are added
+        self.weather_fetcher = weather_fetcher
+        self.weather_cache = {}
         
     def add_household(self, household: Household):
         """Add a household to the simulation"""
         self.households[household.id] = household
     
-    def generate_weather_conditions(self, days: int = 1) -> List[float]:
-        """Generate weather conditions for simulation period"""
-        weather = []
-        for day in range(days):
-            for hour in range(24):
-                # Base weather pattern with some randomness
-                base_weather = 0.8 + 0.2 * np.sin(2 * np.pi * (hour - 6) / 24)
-                # Add some daily variation
-                daily_variation = random.uniform(0.9, 1.1)
-                # Add some hourly noise
-                hourly_noise = random.uniform(0.95, 1.05)
-                
-                weather_factor = base_weather * daily_variation * hourly_noise
-                weather_factor = max(0.0, min(1.0, weather_factor))  # Clamp to [0, 1]
-                weather.append(weather_factor)
+    def get_weather_for_hour(self, hour_idx):
+        """Get weather data with caching mechanism"""
+        if hour_idx in self.weather_cache:
+            return self.weather_cache[hour_idx]
         
-        self.weather_conditions = weather
-        return weather
+        if self.weather_fetcher:
+            forecast = self.weather_fetcher.get_hourly_forecast()
+            if forecast and hour_idx < len(forecast):
+                self.weather_cache = {i: f for i, f in enumerate(forecast)}
+                return forecast[hour_idx]
+        
+        # Fallback to random generation
+        return self.generate_fallback_weather(hour_idx % 24)
+
+    def generate_fallback_weather(self, hour):
+        """Generate more balanced weather conditions for better trading opportunities."""
+        # Temperature (peaks in the afternoon)
+        temp_amplitude = 5  # Reduced variation for more stable conditions
+        temp_mean = 22
+        # Peaks around 3 PM (hour 15)
+        temp = temp_mean + temp_amplitude * np.sin(2 * np.pi * (hour - 9) / 24)
+        temp += random.uniform(-0.5, 0.5)  # Less noise
+
+        # Solar radiation (peaks at noon) - More moderate conditions
+        # Using a cosine function to model daylight hours (approx 6am to 6pm)
+        if 6 <= hour <= 18:
+            solar_radiation = max(200, np.cos((hour - 12) * np.pi / 12)) * 800  # More moderate range
+            solar_radiation = max(200, solar_radiation + random.uniform(-30, 30))  # Less variation
+        else:
+            solar_radiation = 0
+
+        # Cloud cover - More moderate and predictable
+        clouds_base = 25  # Reduced base cloud cover
+        clouds_variation = 15  # Less extreme variation
+        # Some randomness but keep it moderate
+        clouds = clouds_base + random.uniform(-clouds_variation, clouds_variation)
+        clouds = max(10, min(60, clouds))  # Constrain to moderate range
+
+        # Humidity (more stable)
+        humidity = 55 + 15 * np.sin(2 * np.pi * (hour - 6) / 24) + random.uniform(-3, 3)
+        humidity = max(40, min(80, humidity))
+
+        return {
+            'clouds': float(clouds),
+            'temp': float(temp),
+            'solar_radiation': float(solar_radiation),
+            'humidity': float(humidity)
+        }
     
     def trigger_heatwave(self) -> CrisisEvent:
         """Trigger a heatwave crisis event"""
@@ -277,24 +360,87 @@ class SimulationEngine:
 
     def simulate_step(self) -> Dict:
         """Simulate one hour for all households"""
-        if self.current_hour >= len(self.weather_conditions):
-            return {'error': 'Simulation period exceeded'}
+        current_time = self.clock.tick()
+        self.current_hour = current_time.hour
         
-        weather_factor = self.weather_conditions[self.current_hour]
+        raw_weather = self.get_weather_for_hour(self.current_hour)
+        
+        # Calculate weather factors - More balanced for trading
+        cloud_impact_factor = random.uniform(0.6, 0.8)  # Reduced cloud impact
+        weather_factor = 1 - (raw_weather['clouds'] / 100) * cloud_impact_factor
+        temp_factor = 1 + abs(raw_weather['temp'] - 22) * 0.015  # Less temperature impact
+        radiation_boost = min(1.1, raw_weather.get('solar_radiation', 600) / 600)  # More moderate boost
+        
+        # Combine factors - ensure minimum viable generation
+        effective_weather = max(0.4, weather_factor * radiation_boost)  # Minimum 40% generation
+        humidity = raw_weather['humidity']
+
         step_results = {
             'hour': self.current_hour,
-            'weather_factor': weather_factor,
+            'weather_factor': effective_weather,
+            'temp_factor': temp_factor,
+            'humidity': humidity,
+            'raw_weather': raw_weather,
             'households': {}
         }
         
         # Simulate each household
         for household_id, household in self.households.items():
-            result = household.simulate_hour(self.current_hour, weather_factor)
+            result = household.simulate_hour(
+                hour=self.current_hour, 
+                weather_factor=effective_weather, 
+                temp_factor=temp_factor,
+                humidity=humidity
+            )
             step_results['households'][household_id] = result
         
+        # Smart demand adjustment for better market balance
+        community_net = sum(h.current_net_energy for h in self.households.values())
+        sellers = sum(1 for h in self.households.values() if h.role == Role.SELLER)
+        buyers = sum(1 for h in self.households.values() if h.role == Role.BUYER)
+        
+        # Encourage trading by adjusting demand patterns when market is imbalanced
+        if sellers == 0 and buyers > 0:  # Only buyers - reduce some demand
+            high_demand_households = sorted(self.households.values(), key=lambda h: h.current_demand, reverse=True)[:2]
+            for household in high_demand_households:
+                if household.energy_conscious:
+                    original_demand = household.current_demand
+                    household.current_demand *= 0.85
+                    demand_reduction = original_demand - household.current_demand
+                    household.current_net_energy += demand_reduction
+                    household._update_battery()
+                    household._update_role()
+                    step_results['households'][household.id].update({
+                        'demand': household.current_demand,
+                        'net_energy': household.current_net_energy,
+                        'battery_level': household.battery_level,
+                        'role': household.role.value
+                    })
+        
+        elif buyers == 0 and sellers > 0:  # Only sellers - increase some demand
+            low_demand_households = sorted(self.households.values(), key=lambda h: h.current_demand)[:2]
+            for household in low_demand_households:
+                if not household.energy_hoarder:  # Don't force hoarders to use more
+                    original_demand = household.current_demand
+                    household.current_demand *= 1.1
+                    demand_increase = household.current_demand - original_demand
+                    household.current_net_energy -= demand_increase
+                    household._update_battery()
+                    household._update_role()
+                    step_results['households'][household.id].update({
+                        'demand': household.current_demand,
+                        'net_energy': household.current_net_energy,
+                        'battery_level': household.battery_level,
+                        'role': household.role.value
+                    })
+
         # After simulating each household, run trading
+        trades_this_hour = []
         if self.trading_system:
-            self.trading_system.match_trades(self.current_hour)
+            trades_this_hour = self.trading_system.match_trades(self.current_hour)
+        
+        # Add trades to step results for external logging
+        step_results['trades'] = trades_this_hour
         
         # Clear expired crises
         for household in self.households.values():
@@ -303,7 +449,6 @@ class SimulationEngine:
                 household.clear_crisis()
         
         self.simulation_log.append(step_results)
-        self.current_hour += 1
         
         return step_results
     
@@ -391,28 +536,45 @@ def generate_demand_pattern(household_type: str = "typical") -> List[float]:
 
 
 def create_sample_community() -> SimulationEngine:
-    """Create a sample community with various household types"""
+    """Create a balanced community optimized for trading"""
     engine = SimulationEngine()
     
-    # Create households with different characteristics
+    # Create households with more diverse and balanced characteristics
+    # Mix of high-solar/low-demand and low-solar/high-demand households for better trading
     households_data = [
-        ("H001", 3.5, 10.0, "typical"),
-        ("H002", 4.2, 12.0, "high_usage"),
-        ("H003", 2.8, 8.0, "low_usage"),
-        ("H004", 3.0, 10.0, "night_shift"),
-        ("H005", 4.5, 15.0, "typical"),
-        ("H006", 2.5, 7.0, "low_usage"),
-        ("H007", 3.8, 11.0, "high_usage"),
-        ("H008", 3.2, 9.0, "typical"),
+        # High solar producers (potential sellers)
+        ("H001", 5.0, 8.0, "low_usage", "south", False, False),     # High solar, low demand
+        ("H002", 4.8, 9.0, "typical", "south", False, True),       # High solar, typical demand, hoarder
+        ("H003", 4.5, 7.0, "low_usage", "east", True, False),      # Good solar, energy conscious
+        
+        # Medium solar households (flexible traders)
+        ("H004", 3.2, 12.0, "typical", "west", False, False),     # Medium solar, big battery
+        ("H005", 3.0, 11.0, "night_shift", "south", False, False), # Medium solar, shifted demand
+        
+        # Lower solar/higher demand (potential buyers)
+        ("H006", 2.0, 15.0, "high_usage", "north", False, False),  # Low solar, high demand, big battery
+        ("H007", 2.5, 10.0, "high_usage", "west", False, False),   # Low solar, high demand
+        ("H008", 1.8, 12.0, "typical", "north", True, False),     # Low solar, energy conscious
+        
+        # Add more diversity
+        ("H009", 3.8, 6.0, "low_usage", "east", False, True),      # Medium-high solar, small battery, hoarder
+        ("H010", 2.2, 14.0, "night_shift", "west", False, False),  # Low solar, night shift, big battery
     ]
     
-    for household_id, solar_capacity, battery_size, household_type in households_data:
+    for household_id, solar_capacity, battery_size, household_type, orientation, energy_conscious, energy_hoarder in households_data:
         demand_pattern = generate_demand_pattern(household_type)
-        household = Household(household_id, solar_capacity, battery_size, demand_pattern)
+        household = Household(
+            household_id, 
+            solar_capacity, 
+            battery_size, 
+            demand_pattern,
+            orientation=orientation,
+            energy_conscious=energy_conscious,
+            energy_hoarder=energy_hoarder
+        )
         engine.add_household(household)
     
-    # Generate weather conditions for 3 days
-    engine.generate_weather_conditions(days=3)
+    # Weather is now handled by the simulation engine dynamically
     
     return engine
 
@@ -432,29 +594,94 @@ class TradingSystem:
             df.to_csv(self.ledger_file, index=False)
 
     def match_trades(self, hour):
-        """
-        Match sellers with buyers and execute trades.
-        Buyers are sorted by priority and battery level.
-        """
+        """Enhanced matching algorithm optimized for more trading opportunities"""
+        executed_trades = []
         households = list(self.engine.households.values())
-        sellers = [h for h in households if h.role == Role.SELLER]
-        buyers = [h for h in households if h.role == Role.BUYER]
-        buyers.sort(key=lambda x: x.battery_level)
-        for buyer in buyers:
-            for seller in sellers:
-                surplus = seller.current_net_energy
-                deficit = abs(buyer.current_net_energy)
-                if surplus <= 0 or deficit <= 0:
+        
+        # Get active participants with more flexible criteria
+        sellers = [h for h in households if h.role == Role.SELLER and h.current_net_energy > 0.05]
+        buyers = [h for h in households if h.role == Role.BUYER and h.current_net_energy < -0.05]
+        
+        if not sellers or not buyers:
+            return executed_trades
+        
+        # Sort by urgency and capacity
+        sellers.sort(key=lambda x: (x.battery_level, x.current_net_energy), reverse=True)
+        buyers.sort(key=lambda x: (x.battery_level, -x.current_net_energy))  # Low battery, high deficit first
+        
+        # Dynamic pricing based on supply/demand ratio
+        supply = sum(max(0, s.current_net_energy) for s in sellers)
+        demand = sum(abs(min(0, b.current_net_energy)) for b in buyers)
+        
+        if demand > 0:
+            supply_demand_ratio = supply / demand
+            if supply_demand_ratio > 1.5:
+                price = 0.10  # Buyer's market
+            elif supply_demand_ratio > 0.8:
+                price = 0.15  # Balanced market
+            else:
+                price = 0.20  # Seller's market
+        else:
+            price = 0.15  # Default price
+        
+        # Match trades with multiple rounds for better satisfaction
+        max_rounds = 3
+        for round_num in range(max_rounds):
+            trades_this_round = []
+            
+            for buyer in buyers[:]:
+                if buyer.current_net_energy >= -0.05:  # Buyer satisfied
+                    buyers.remove(buyer)
                     continue
-                kwh = min(surplus, deficit)
-                price = 0.15  # $0.15 per kWh
-                try:
-                    success = self._execute_trade(seller, buyer, kwh, price, hour)
-                except Exception as e:
-                    print(f"Trade error: {e}")
-                    continue
-                if not success:
-                    continue
+                    
+                for seller in sellers[:]:
+                    if seller.current_net_energy <= 0.05:  # Seller depleted
+                        sellers.remove(seller)
+                        continue
+                        
+                    # Calculate trade amount - more flexible sizing
+                    buyer_need = abs(buyer.current_net_energy)
+                    seller_available = seller.current_net_energy
+                    
+                    # Scale trade size based on battery levels and round
+                    if round_num == 0:  # First round - larger trades
+                        max_trade = min(
+                            seller_available * 0.6,  # Up to 60% of available
+                            buyer_need * 0.8,        # Up to 80% of need
+                            2.0                       # Max 2 kWh per trade
+                        )
+                    else:  # Later rounds - smaller trades
+                        max_trade = min(
+                            seller_available * 0.4,
+                            buyer_need * 0.6,
+                            1.0
+                        )
+                    
+                    # Ensure meaningful trade
+                    if max_trade < 0.05:
+                        continue
+                        
+                    # Execute trade
+                    try:
+                        success = self._execute_trade(seller, buyer, max_trade, price, hour)
+                        if success:
+                            trades_this_round.append({
+                                "from": seller.id,
+                                "to": buyer.id,
+                                "kwh": round(max_trade, 2),
+                                "price": round(max_trade * price, 2)
+                            })
+                            break  # Move to next buyer
+                    except Exception as e:
+                        print(f"Trade error: {e}")
+            
+            executed_trades.extend(trades_this_round)
+            
+            # If no trades happened this round, stop
+            if not trades_this_round:
+                break
+        
+        return executed_trades
 
     def _execute_trade(self, seller, buyer, kwh, price, hour):
         """
@@ -489,46 +716,78 @@ class TradingSystem:
 
 
 if __name__ == "__main__":
-    # Example usage
-    print("Creating SolarShare Digital Twin Simulation Engine...")
-    
-    # Create sample community
+    print("Starting SolarShare Real-time Simulation...")
+
+    # Create simulation engine
     engine = create_sample_community()
-    
-    # Simulate for 24 hours
-    print(f"\nSimulating 24 hours for {len(engine.households)} households...")
-    results = []
-    for hour in range(24):
-        result = engine.simulate_step()
-        results.append(result)
-        print(f"\nHour {hour}:")
-        for hid, hdata in result['households'].items():
-            print(f"  {hid}: Battery={hdata['battery_level']:.2f}, Net={hdata['net_energy']:.2f}, Role={hdata['role']}")
-        # Write household_state.json for backend
-        household_state = {
-            "hour": hour,
-            "households": {
-                hid: {
-                    "battery_level": hdata["battery_level"],
-                    "net_energy": hdata["net_energy"],
-                    "role": hdata["role"],
-                    "solar_generation": hdata["solar_generation"],
-                    "demand": hdata["demand"]
-                } for hid, hdata in result["households"].items()
+    engine.initialize_trading_system()
+
+    # Initialize/clear the JSON log file
+    with open("household_state.json", "w") as f:
+        json.dump([], f, indent=2)
+
+    # Real-time simulation loop
+    try:
+        while True:
+            # Simulate one hour
+            result = engine.simulate_step()
+            
+            # Format data for JSON output
+            timestamp = engine.clock.current_time.isoformat() + "Z"
+            
+            households_data = []
+            for hid, hdata in result['households'].items():
+                households_data.append({
+                    "id": hid,
+                    "role": hdata['role'],
+                    "battery": int(hdata['battery_level'] * 100),
+                    "solar": hdata['solar_generation'],
+                    "demand": hdata['demand'],
+                    "net_energy": hdata['net_energy']
+                })
+
+            # The new format for household_state.json
+            output_data = {
+                "timestamp": timestamp,
+                "households": households_data,
+                "trades": result.get('trades', [])
             }
-        }
-        with open("household_state.json", "w") as f:
-            json.dump(household_state, f, indent=2)
-    
-    # Print summary
-    print(f"\nSimulation completed!")
-    print(f"Total households: {len(engine.households)}")
-    print(f"Simulation period: 24 hours")
-    
-    # Show final community status
-    status = engine.get_community_status()
-    print(f"\nFinal Community Status:")
-    print(f"Total energy generated: {status['total_generated']:.2f} kWh")
-    print(f"Total energy consumed: {status['total_consumed']:.2f} kWh")
-    print(f"Total energy traded: {status['total_traded']:.2f} kWh")
-    print(f"Current roles - Sellers: {status['sellers']}, Buyers: {status['buyers']}, Idle: {status['idle']}")
+
+            # Read current log, append new entry, and write back
+            with open("household_state.json", "r+") as f:
+                log_data = json.load(f)
+                log_data.append(output_data)
+                f.seek(0)
+                json.dump(log_data, f, indent=2)
+
+            # Log to terminal
+            print(f"--- {timestamp} ---")
+            raw_weather = result['raw_weather']
+            print(f"Weather: {raw_weather['temp']:.1f}°C, {raw_weather['clouds']:.0f}% clouds, Solar Rad: {raw_weather['solar_radiation']:.0f}")
+            
+            for h in households_data:
+                print(f"  ID: {h['id']}, Role: {h['role']:<6}, Battery: {h['battery']:>3}%, Solar: {h['solar']:.2f}, Demand: {h['demand']:.2f}, Net: {h['net_energy']:.2f}")
+
+            if output_data['trades']:
+                print("Trades this hour:")
+                for t in output_data['trades']:
+                    print(f"  {t['from']} -> {t['to']}: {t['kwh']:.2f} kWh @ ${t['price']:.2f}")
+            
+            # Add summary statistics
+            status = engine.get_community_status()
+            print(f"Sellers: {status['sellers']} | Buyers: {status['buyers']} | Idle: {status['idle']}")
+            print(f"Community Net: {status['total_generated'] - status['total_consumed']:.2f} kWh")
+
+            print("-" * (len(timestamp) + 6))
+
+            # Wait for 1 second to simulate 1 hour passing
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        print("\nSimulation stopped by user.")
+        # Print summary
+        status = engine.get_community_status()
+        print(f"\nFinal Community Status:")
+        print(f"Total energy generated: {status['total_generated']:.2f} kWh")
+        print(f"Total energy consumed: {status['total_consumed']:.2f} kWh")
+        print(f"Total energy traded: {status['total_traded']:.2f} kWh")
