@@ -29,6 +29,13 @@
                         <span class="theme-toggle-switch"></span>
                     </label>
                 </div>
+                <div class="simulation-control-toggle">
+                    <span class="control-label">Simulation Control</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="simulationControlToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
                 <!-- Simulation Speed Controls -->
                 <div class="simulation-controls" id="simulationControls">
                     <div class="control-toggle">
@@ -251,6 +258,160 @@
             </div>
             <div class="modal-body" id="modalBody">
                 <!-- Household details will be populated dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulation Parameters Modal -->
+    <div class="modal-overlay" id="simulationParamsModal">
+        <div class="modal-content simulation-modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Simulation Parameters</h3>
+                <button class="modal-close" id="paramsModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="params-tabs">
+                    <button class="params-tab active" data-tab="household">Household</button>
+                    <button class="params-tab" data-tab="trading">Trading</button>
+                    <button class="params-tab" data-tab="weather">Weather</button>
+                    <button class="params-tab" data-tab="speed">Speed</button>
+                </div>
+                <form id="simulationParamsForm">
+                    <!-- Household Parameters Tab -->
+                    <div class="params-tab-content active" id="householdTab">
+                        <div class="param-group">
+                            <label for="solarCapacity">Solar Capacity (kW)</label>
+                            <input type="range" id="solarCapacity" name="solar_capacity" min="2" max="5" step="0.1" value="3.5">
+                            <span class="param-value">3.5</span>
+                        </div>
+                        <div class="param-group">
+                            <label for="batterySize">Battery Size (kWh)</label>
+                            <input type="range" id="batterySize" name="battery_size" min="5" max="15" step="0.5" value="10">
+                            <span class="param-value">10</span>
+                        </div>
+                        <div class="param-group">
+                            <label for="initialBatteryLevel">Initial Battery Level (%)</label>
+                            <input type="range" id="initialBatteryLevel" name="initial_battery_level" min="0" max="100" step="5" value="50">
+                            <span class="param-value">50</span>
+                        </div>
+                        <div class="param-group">
+                            <label for="orientation">Panel Orientation</label>
+                            <select id="orientation" name="orientation">
+                                <option value="south">South (1.0x)</option>
+                                <option value="east">East (0.8x)</option>
+                                <option value="west">West (0.8x)</option>
+                                <option value="north">North (0.6x)</option>
+                            </select>
+                        </div>
+                        <div class="param-group">
+                            <label for="householdType">Household Type</label>
+                            <select id="householdType" name="household_type">
+                                <option value="typical">Typical</option>
+                                <option value="high_usage">High Usage</option>
+                                <option value="low_usage">Low Usage</option>
+                                <option value="night_shift">Night Shift</option>
+                            </select>
+                        </div>
+                        <div class="param-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="energyConscious" name="energy_conscious">
+                                <span class="checkmark"></span>
+                                Energy Conscious (reduces demand during deficits)
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Trading Parameters Tab -->
+                    <div class="params-tab-content" id="tradingTab">
+                        <div class="param-group">
+                            <label for="minReserve">Minimum Reserve (%)</label>
+                            <input type="range" id="minReserve" name="minimum_reserve_percentage" min="10" max="30" step="1" value="20">
+                            <span class="param-value">20</span>
+                        </div>
+                        <div class="param-group">
+                            <label for="minPrice">Minimum Price ($/kWh)</label>
+                            <input type="range" id="minPrice" name="min_price" min="0.05" max="0.15" step="0.01" value="0.10">
+                            <span class="param-value">0.10</span>
+                        </div>
+                        <div class="param-group">
+                            <label for="maxPrice">Maximum Price ($/kWh)</label>
+                            <input type="range" id="maxPrice" name="max_price" min="0.15" max="0.30" step="0.01" value="0.20">
+                            <span class="param-value">0.20</span>
+                        </div>
+                        <div class="param-group">
+                            <label for="maxTradingRounds">Max Trading Rounds</label>
+                            <input type="range" id="maxTradingRounds" name="max_trading_rounds" min="1" max="5" step="1" value="3">
+                            <span class="param-value">3</span>
+                        </div>
+                        <div class="param-group">
+                            <label for="maxTradeSize">Max Trade Size First Round (kWh)</label>
+                            <input type="range" id="maxTradeSize" name="max_trade_size_first" min="0.5" max="3.0" step="0.1" value="2.0">
+                            <span class="param-value">2.0</span>
+                        </div>
+                        <div class="param-group">
+                            <label for="minTradeSize">Min Trade Size (kWh)</label>
+                            <input type="range" id="minTradeSize" name="min_trade_size" min="0.01" max="0.1" step="0.01" value="0.05">
+                            <span class="param-value">0.05</span>
+                        </div>
+                    </div>
+
+                    <!-- Weather Parameters Tab -->
+                    <div class="params-tab-content" id="weatherTab">
+                        <div class="param-group">
+                            <label for="tempMean">Average Temperature (°C)</label>
+                            <input type="range" id="tempMean" name="temp_mean" min="15" max="30" step="1" value="22">
+                            <span class="param-value">22</span>
+                        </div>
+                        <div class="param-group">
+                            <label for="maxSolarRadiation">Max Solar Radiation (W/m²)</label>
+                            <input type="range" id="maxSolarRadiation" name="max_solar_radiation" min="600" max="1000" step="25" value="800">
+                            <span class="param-value">800</span>
+                        </div>
+                        <div class="param-group">
+                            <label for="cloudsBase">Base Cloud Cover (%)</label>
+                            <input type="range" id="cloudsBase" name="clouds_base" min="10" max="50" step="1" value="25">
+                            <span class="param-value">25</span>
+                        </div>
+                        <div class="param-group">
+                            <label for="heatwaveDemand">Heatwave Demand Multiplier</label>
+                            <input type="range" id="heatwaveDemand" name="heatwave_demand_multiplier" min="1.2" max="2.0" step="0.1" value="1.5">
+                            <span class="param-value">1.5</span>
+                        </div>
+                        <div class="param-group">
+                            <label for="heatwaveSolar">Heatwave Solar Reduction</label>
+                            <input type="range" id="heatwaveSolar" name="heatwave_solar_reduction" min="0.2" max="0.7" step="0.05" value="0.4">
+                            <span class="param-value">0.4</span>
+                        </div>
+                        <div class="param-group">
+                            <label for="heatwaveDuration">Heatwave Min Duration (hours)</label>
+                            <input type="range" id="heatwaveDuration" name="heatwave_min_duration" min="1" max="8" step="1" value="3">
+                            <span class="param-value">3</span>
+                        </div>
+                    </div>
+
+                    <!-- Speed Parameters Tab -->
+                    <div class="params-tab-content" id="speedTab">
+                        <div class="param-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="fastForwardNights" name="fast_forward_nights">
+                                <span class="checkmark"></span>
+                                Fast-Forward Nights (23:00-05:00 at 2x speed)
+                            </label>
+                        </div>
+                        <div class="param-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="slowDownDays" name="slow_down_days">
+                                <span class="checkmark"></span>
+                                Slow-Down Days (06:00-22:00 at 0.5x speed)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" id="resetParams" class="btn-secondary">Reset to Defaults</button>
+                        <button type="submit" class="btn-primary">Apply Parameters</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

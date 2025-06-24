@@ -1,6 +1,6 @@
 import asyncio
 import pandas as pd
-from fastapi import FastAPI, WebSocket, Path, Query
+from fastapi import FastAPI, WebSocket, Path, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -23,6 +23,7 @@ app.add_middleware(
 TRADES_FILE = "trades.csv"
 HOUSEHOLD_STATE_FILE = "household_state.json"
 CONTROLS_FILE = "simulation_controls.json"
+PARAMS_FILE = "simulation_params.json"
 
 # Global variables for metrics calculation
 previous_metrics = None
@@ -54,6 +55,22 @@ def write_controls(controls_data: dict):
     """Writes control states to a JSON file."""
     with open(CONTROLS_FILE, "w") as f:
         json.dump(controls_data, f)
+
+def get_simulation_params():
+    """Reads simulation parameters from JSON file."""
+    if not os.path.exists(PARAMS_FILE):
+        return None
+    
+    try:
+        with open(PARAMS_FILE, "r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        return None
+
+def write_simulation_params(params_data: dict):
+    """Writes simulation parameters to JSON file."""
+    with open(PARAMS_FILE, "w") as f:
+        json.dump(params_data, f)
 
 def get_household_state():
     if not os.path.exists(HOUSEHOLD_STATE_FILE):
@@ -254,6 +271,45 @@ def toggle_slow_down_days():
     controls["slow_down_days"] = not controls.get("slow_down_days", False)
     write_controls(controls)
     return JSONResponse(content=controls)
+
+# Simulation Parameters Endpoints
+@app.get("/simulation/config")
+def get_simulation_config():
+    """Returns the current simulation parameters configuration."""
+    params = get_simulation_params()
+    return JSONResponse(content={
+        "custom_enabled": params is not None,
+        "parameters": params if params else {}
+    })
+
+@app.post("/simulation/config")
+async def set_simulation_config(request: Request):
+    """Sets simulation parameters configuration."""
+    try:
+        body = await request.json()
+        # Validate and set parameters
+        if body.get("enabled", False):
+            params = body.get("parameters", {})
+            # Add validation here if needed
+            write_simulation_params(params)
+        else:
+            # Remove custom parameters file to revert to defaults
+            if os.path.exists(PARAMS_FILE):
+                os.remove(PARAMS_FILE)
+        
+        return JSONResponse(content={"success": True, "message": "Configuration updated"})
+    except Exception as e:
+        return JSONResponse(content={"success": False, "error": str(e)}, status_code=400)
+
+@app.delete("/simulation/config")
+def reset_simulation_config():
+    """Resets simulation parameters to defaults."""
+    try:
+        if os.path.exists(PARAMS_FILE):
+            os.remove(PARAMS_FILE)
+        return JSONResponse(content={"success": True, "message": "Configuration reset to defaults"})
+    except Exception as e:
+        return JSONResponse(content={"success": False, "error": str(e)}, status_code=400)
 
 # History endpoint for time-series data
 @app.get("/history")

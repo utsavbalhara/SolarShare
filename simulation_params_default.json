@@ -1,0 +1,30 @@
+{
+  "household": {
+    "solar_capacity": 3.5,
+    "battery_size": 10.0,
+    "initial_battery_level": 50,
+    "orientation": "south",
+    "household_type": "typical",
+    "energy_conscious": false
+  },
+  "trading": {
+    "minimum_reserve_percentage": 20,
+    "min_price": 0.10,
+    "max_price": 0.20,
+    "max_trading_rounds": 3,
+    "max_trade_size_first": 2.0,
+    "min_trade_size": 0.05
+  },
+  "weather": {
+    "temp_mean": 22,
+    "max_solar_radiation": 800,
+    "clouds_base": 25,
+    "heatwave_demand_multiplier": 1.5,
+    "heatwave_solar_reduction": 0.4,
+    "heatwave_min_duration": 3
+  },
+  "speed": {
+    "fast_forward_nights": false,
+    "slow_down_days": false
+  }
+}

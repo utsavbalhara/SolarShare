@@ -166,7 +166,7 @@ class Household:
         # Crisis state
         self.active_crisis = None
         
-    def simulate_hour(self, hour: int, weather_factor: float, temp_factor: float, humidity: float) -> Dict[str, float]:
+    def simulate_hour(self, hour: int, weather_factor: float, temp_factor: float, humidity: float, min_reserve_percentage: float = 20.0) -> Dict[str, float]:
         """
         Simulate energy behavior for a specific hour.
         
@@ -207,7 +207,7 @@ class Household:
         self._update_battery()
         
         # Update role based on current state
-        self._update_role()
+        self._update_role(min_reserve_percentage)
         
         # Update totals
         self.total_generated += self.current_solar_gen
@@ -248,10 +248,10 @@ class Household:
             self.stored_energy -= storage_percentage_loss
             self.current_net_energy += energy_from_storage
     
-    def _update_role(self):
+    def _update_role(self, min_reserve_percentage=20.0):
         """Update household role based on stored energy only (storage-first trading)"""
-        # Seller: Has stored energy above 20% minimum reserve
-        if self.stored_energy > 20.0:
+        # Seller: Has stored energy above minimum reserve
+        if self.stored_energy > min_reserve_percentage:
             self.role = Role.SELLER
         # Buyer: Has energy deficit AND has storage capacity available
         elif self.current_net_energy < 0 and self.stored_energy < 100.0:
@@ -260,15 +260,15 @@ class Household:
         else:
             self.role = Role.IDLE
     
-    def can_sell_energy(self, amount: float) -> bool:
+    def can_sell_energy(self, amount: float, min_reserve_percentage=20.0) -> bool:
         """Check if household can sell energy from stored reserves"""
-        # Must be seller role and have stored energy above 20% minimum reserve
-        if self.role != Role.SELLER or self.stored_energy <= 20.0:
+        # Must be seller role and have stored energy above minimum reserve
+        if self.role != Role.SELLER or self.stored_energy <= min_reserve_percentage:
             return False
         
         # Check if we have enough stored energy for the trade
         amount_percentage = (amount / self.battery) * 100.0
-        return (self.stored_energy - amount_percentage) >= 20.0
+        return (self.stored_energy - amount_percentage) >= min_reserve_percentage
     
     def can_buy_energy(self, amount: float) -> bool:
         """Check if household can buy energy (has storage capacity)"""
@@ -279,13 +279,13 @@ class Household:
         amount_percentage = (amount / self.battery) * 100.0
         return (self.stored_energy + amount_percentage) <= 100.0
     
-    def trade_energy(self, amount: float, price: float, partner_id: str):
+    def trade_energy(self, amount: float, price: float, partner_id: str, min_reserve_percentage=20.0):
         """Execute energy trade using stored energy only (100% efficiency)"""
         amount_percentage = (amount / self.battery) * 100.0
         
         if self.role == Role.SELLER:
-            # Sell from stored energy - check if we can maintain 20% reserve
-            if (self.stored_energy - amount_percentage) >= 20.0:
+            # Sell from stored energy - check if we can maintain minimum reserve
+            if (self.stored_energy - amount_percentage) >= min_reserve_percentage:
                 self.stored_energy -= amount_percentage
                 self.total_traded += amount
                 self.trading_history.append({
@@ -369,7 +369,62 @@ class SimulationEngine:
         self.fast_forward_nights = False
         self.slow_down_days = False
         self.controls_file = "simulation_controls.json"
+        self.params_file = "simulation_params.json"
+        
+        # Simulation parameters (with defaults)
+        self.params = self._load_simulation_params()
+        
         self._read_controls()  # Initial read
+
+    def _load_simulation_params(self):
+        """Load simulation parameters from file or use defaults"""
+        # Default parameters
+        defaults = {
+            "household": {
+                "solar_capacity": 3.5,
+                "battery_size": 10.0,
+                "initial_battery_level": 50,
+                "orientation": "south",
+                "household_type": "typical",
+                "energy_conscious": False
+            },
+            "trading": {
+                "minimum_reserve_percentage": 20,
+                "min_price": 0.10,
+                "max_price": 0.20,
+                "max_trading_rounds": 3,
+                "max_trade_size_first": 2.0,
+                "min_trade_size": 0.05
+            },
+            "weather": {
+                "temp_mean": 22,
+                "max_solar_radiation": 800,
+                "clouds_base": 25,
+                "heatwave_demand_multiplier": 1.5,
+                "heatwave_solar_reduction": 0.4,
+                "heatwave_min_duration": 3
+            },
+            "speed": {
+                "fast_forward_nights": False,
+                "slow_down_days": False
+            }
+        }
+        
+        # Try to load custom parameters
+        if os.path.exists(self.params_file):
+            try:
+                with open(self.params_file, "r") as f:
+                    custom_params = json.load(f)
+                    # Merge custom parameters with defaults
+                    for category, params in custom_params.items():
+                        if category in defaults:
+                            defaults[category].update(params)
+                        else:
+                            defaults[category] = params
+            except (json.JSONDecodeError, FileNotFoundError):
+                pass  # Use defaults if file is corrupted or missing
+        
+        return defaults
 
     def _read_controls(self):
         """Read control states from file"""
@@ -493,12 +548,14 @@ class SimulationEngine:
         }
         
         # Simulate each household
+        min_reserve = self.params["trading"]["minimum_reserve_percentage"]
         for household_id, household in self.households.items():
             result = household.simulate_hour(
                 hour=self.current_hour, 
                 weather_factor=effective_weather, 
                 temp_factor=temp_factor,
-                humidity=humidity
+                humidity=humidity,
+                min_reserve_percentage=min_reserve
             )
             step_results['households'][household_id] = result
         
@@ -517,7 +574,7 @@ class SimulationEngine:
                     demand_reduction = original_demand - household.current_demand
                     household.current_net_energy += demand_reduction
                     household._update_battery()
-                    household._update_role()
+                    household._update_role(min_reserve)
                     step_results['households'][household.id].update({
                         'demand': household.current_demand,
                         'net_energy': household.current_net_energy,
@@ -534,7 +591,7 @@ class SimulationEngine:
                     demand_increase = household.current_demand - original_demand
                     household.current_net_energy -= demand_increase
                     household._update_battery()
-                    household._update_role()
+                    household._update_role(min_reserve)
                     step_results['households'][household.id].update({
                         'demand': household.current_demand,
                         'net_energy': household.current_net_energy,
@@ -712,7 +769,8 @@ class TradingSystem:
         households = list(self.engine.households.values())
         
         # Get active participants based on storage-first criteria
-        sellers = [h for h in households if h.role == Role.SELLER and h.stored_energy > 20.0]
+        min_reserve = self.engine.params["trading"]["minimum_reserve_percentage"]
+        sellers = [h for h in households if h.role == Role.SELLER and h.stored_energy > min_reserve]
         buyers = [h for h in households if h.role == Role.BUYER and h.stored_energy < 100.0]
         
         if not sellers or not buyers:
@@ -723,56 +781,64 @@ class TradingSystem:
         buyers.sort(key=lambda x: (x.stored_energy, -x.current_net_energy))  # Low stored energy, high deficit first
         
         # Dynamic pricing based on supply/demand ratio (using available stored energy)
-        supply = sum((h.stored_energy - 20.0) / 100.0 * h.battery for h in sellers)  # Available kWh above reserve
+        min_reserve = self.engine.params["trading"]["minimum_reserve_percentage"]
+        min_price = self.engine.params["trading"]["min_price"]
+        max_price = self.engine.params["trading"]["max_price"]
+        mid_price = (min_price + max_price) / 2
+        
+        supply = sum((h.stored_energy - min_reserve) / 100.0 * h.battery for h in sellers)  # Available kWh above reserve
         demand = sum(abs(min(0, h.current_net_energy)) for h in buyers)  # Energy deficit in kWh
         
         if demand > 0:
             supply_demand_ratio = supply / demand
             if supply_demand_ratio > 1.5:
-                price = 0.10  # Buyer's market
+                price = min_price  # Buyer's market
             elif supply_demand_ratio > 0.8:
-                price = 0.15  # Balanced market
+                price = mid_price  # Balanced market
             else:
-                price = 0.20  # Seller's market
+                price = max_price  # Seller's market
         else:
-            price = 0.15  # Default price
+            price = mid_price  # Default price
         
         # Match trades with multiple rounds for better satisfaction
-        max_rounds = 3
+        max_rounds = self.engine.params["trading"]["max_trading_rounds"]
+        max_trade_first = self.engine.params["trading"]["max_trade_size_first"]
+        min_trade_size = self.engine.params["trading"]["min_trade_size"]
+        
         for round_num in range(max_rounds):
             trades_this_round = []
             
             for buyer in buyers[:]:
-                if buyer.current_net_energy >= -0.05:  # Buyer satisfied
+                if buyer.current_net_energy >= -min_trade_size:  # Buyer satisfied
                     buyers.remove(buyer)
                     continue
                     
                 for seller in sellers[:]:
-                    if seller.stored_energy <= 20.0:  # Seller at minimum reserve
+                    if seller.stored_energy <= min_reserve:  # Seller at minimum reserve
                         sellers.remove(seller)
                         continue
                         
                     # Calculate trade amount based on stored energy and need
                     buyer_need = abs(buyer.current_net_energy)
-                    # Available stored energy above 20% reserve (in kWh)
-                    seller_available_kwh = ((seller.stored_energy - 20.0) / 100.0) * seller.battery
+                    # Available stored energy above reserve (in kWh)
+                    seller_available_kwh = ((seller.stored_energy - min_reserve) / 100.0) * seller.battery
                     
                     # Scale trade size based on storage levels and round
                     if round_num == 0:  # First round - larger trades
                         max_trade = min(
                             seller_available_kwh * 0.6,  # Up to 60% of available stored energy
                             buyer_need * 0.8,            # Up to 80% of need
-                            2.0                           # Max 2 kWh per trade
+                            max_trade_first               # Max first round trade size
                         )
                     else:  # Later rounds - smaller trades
                         max_trade = min(
                             seller_available_kwh * 0.4,
                             buyer_need * 0.6,
-                            1.0
+                            max_trade_first / 2           # Half of first round max
                         )
                     
                     # Ensure meaningful trade
-                    if max_trade < 0.05:
+                    if max_trade < min_trade_size:
                         continue
                         
                     # Execute trade
@@ -801,8 +867,9 @@ class TradingSystem:
         """
         Execute a trade between a seller and a buyer.
         """
-        seller_success = seller.trade_energy(kwh, price, buyer.id)
-        buyer_success = buyer.trade_energy(kwh, price, seller.id)
+        min_reserve = self.engine.params["trading"]["minimum_reserve_percentage"]
+        seller_success = seller.trade_energy(kwh, price, buyer.id, min_reserve)
+        buyer_success = buyer.trade_energy(kwh, price, seller.id, min_reserve)
         if seller_success and buyer_success:
             self.log_transaction(seller, buyer, kwh, price, hour)
             return True

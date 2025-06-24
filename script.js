@@ -104,6 +104,49 @@ class SolarShareDashboard {
         document.getElementById('slowDownToggle').addEventListener('change', (e) => {
             this.toggleControl('slow-down-days', e.target.checked);
         });
+
+        // Simulation control toggle
+        document.getElementById('simulationControlToggle').addEventListener('change', (e) => {
+            this.toggleSimulationControlModal(e.target.checked);
+        });
+
+        // Simulation parameters modal
+        document.getElementById('paramsModalClose').addEventListener('click', () => {
+            this.closeSimulationParamsModal();
+        });
+
+        // Parameters modal outside click
+        document.getElementById('simulationParamsModal').addEventListener('click', (e) => {
+            if (e.target.id === 'simulationParamsModal') {
+                this.closeSimulationParamsModal();
+            }
+        });
+
+        // Parameters tabs
+        document.querySelectorAll('.params-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                this.switchParamsTab(tabName);
+            });
+        });
+
+        // Range input updates
+        document.querySelectorAll('input[type="range"]').forEach(input => {
+            input.addEventListener('input', (e) => {
+                this.updateRangeDisplay(e.target);
+            });
+        });
+
+        // Form submission
+        document.getElementById('simulationParamsForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.submitSimulationParams();
+        });
+
+        // Reset button
+        document.getElementById('resetParams').addEventListener('click', () => {
+            this.resetSimulationParams();
+        });
     }
 
     async loadInitialData() {
@@ -136,6 +179,14 @@ class SolarShareDashboard {
                 const controls = await controlsResponse.json();
                 console.log('Loaded initial controls:', controls);
                 this.updateControlToggles(controls);
+            }
+
+            // Load initial simulation config status
+            const configResponse = await fetch('http://localhost:8000/simulation/config');
+            if (configResponse.ok) {
+                const config = await configResponse.json();
+                console.log('Loaded simulation config:', config);
+                this.updateSimulationControlStatus(config);
             }
 
         } catch (error) {
@@ -1328,6 +1379,252 @@ class SolarShareDashboard {
         chart.options.plugins.title.color = titleColor;
         
         chart.update();
+    }
+
+    // Simulation Parameters Modal Methods
+    toggleSimulationControlModal(isEnabled) {
+        if (isEnabled) {
+            this.openSimulationParamsModal();
+        } else {
+            this.closeSimulationParamsModal();
+            this.resetSimulationControl();
+        }
+    }
+
+    async openSimulationParamsModal() {
+        try {
+            // Load current configuration
+            const response = await fetch('http://localhost:8000/simulation/config');
+            if (response.ok) {
+                const config = await response.json();
+                this.populateSimulationParams(config);
+            }
+            
+            // Show modal
+            document.getElementById('simulationParamsModal').classList.add('active');
+        } catch (error) {
+            console.error('Failed to load simulation config:', error);
+        }
+    }
+
+    closeSimulationParamsModal() {
+        document.getElementById('simulationParamsModal').classList.remove('active');
+        // Don't uncheck the toggle here - let the user decide
+    }
+
+    resetSimulationControl() {
+        // Reset toggle if modal was closed without applying
+        document.getElementById('simulationControlToggle').checked = false;
+        // Reset simulation to defaults
+        this.resetSimulationParams();
+    }
+
+    switchParamsTab(tabName) {
+        // Remove active class from all tabs and content
+        document.querySelectorAll('.params-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        document.querySelectorAll('.params-tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+
+        // Add active class to selected tab and content
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        document.getElementById(`${tabName}Tab`).classList.add('active');
+    }
+
+    updateRangeDisplay(input) {
+        const valueSpan = input.parentElement.querySelector('.param-value');
+        if (valueSpan) {
+            let value = input.value;
+            // Format value based on input type
+            if (input.step === '0.01') {
+                value = parseFloat(value).toFixed(2);
+            } else if (input.step === '0.1') {
+                value = parseFloat(value).toFixed(1);
+            }
+            valueSpan.textContent = value;
+        }
+    }
+
+    populateSimulationParams(config) {
+        const { custom_enabled, parameters } = config;
+        
+        if (custom_enabled && parameters) {
+            // Populate household parameters
+            if (parameters.household) {
+                this.setInputValue('solarCapacity', parameters.household.solar_capacity);
+                this.setInputValue('batterySize', parameters.household.battery_size);
+                this.setInputValue('initialBatteryLevel', parameters.household.initial_battery_level);
+                this.setInputValue('orientation', parameters.household.orientation);
+                this.setInputValue('householdType', parameters.household.household_type);
+                this.setInputValue('energyConscious', parameters.household.energy_conscious);
+            }
+
+            // Populate trading parameters
+            if (parameters.trading) {
+                this.setInputValue('minReserve', parameters.trading.minimum_reserve_percentage);
+                this.setInputValue('minPrice', parameters.trading.min_price);
+                this.setInputValue('maxPrice', parameters.trading.max_price);
+                this.setInputValue('maxTradingRounds', parameters.trading.max_trading_rounds);
+                this.setInputValue('maxTradeSize', parameters.trading.max_trade_size_first);
+                this.setInputValue('minTradeSize', parameters.trading.min_trade_size);
+            }
+
+            // Populate weather parameters
+            if (parameters.weather) {
+                this.setInputValue('tempMean', parameters.weather.temp_mean);
+                this.setInputValue('maxSolarRadiation', parameters.weather.max_solar_radiation);
+                this.setInputValue('cloudsBase', parameters.weather.clouds_base);
+                this.setInputValue('heatwaveDemand', parameters.weather.heatwave_demand_multiplier);
+                this.setInputValue('heatwaveSolar', parameters.weather.heatwave_solar_reduction);
+                this.setInputValue('heatwaveDuration', parameters.weather.heatwave_min_duration);
+            }
+
+            // Populate speed parameters
+            if (parameters.speed) {
+                this.setInputValue('fastForwardNights', parameters.speed.fast_forward_nights);
+                this.setInputValue('slowDownDays', parameters.speed.slow_down_days);
+            }
+        }
+
+        // Update range displays
+        document.querySelectorAll('input[type="range"]').forEach(input => {
+            this.updateRangeDisplay(input);
+        });
+    }
+
+    setInputValue(inputId, value) {
+        const input = document.getElementById(inputId);
+        if (input) {
+            if (input.type === 'checkbox') {
+                input.checked = value;
+            } else {
+                input.value = value;
+            }
+        }
+    }
+
+    async submitSimulationParams() {
+        try {
+            const formData = new FormData(document.getElementById('simulationParamsForm'));
+            const parameters = {
+                household: {
+                    solar_capacity: parseFloat(formData.get('solar_capacity')),
+                    battery_size: parseFloat(formData.get('battery_size')),
+                    initial_battery_level: parseInt(formData.get('initial_battery_level')),
+                    orientation: formData.get('orientation'),
+                    household_type: formData.get('household_type'),
+                    energy_conscious: formData.has('energy_conscious')
+                },
+                trading: {
+                    minimum_reserve_percentage: parseInt(formData.get('minimum_reserve_percentage')),
+                    min_price: parseFloat(formData.get('min_price')),
+                    max_price: parseFloat(formData.get('max_price')),
+                    max_trading_rounds: parseInt(formData.get('max_trading_rounds')),
+                    max_trade_size_first: parseFloat(formData.get('max_trade_size_first')),
+                    min_trade_size: parseFloat(formData.get('min_trade_size'))
+                },
+                weather: {
+                    temp_mean: parseInt(formData.get('temp_mean')),
+                    max_solar_radiation: parseInt(formData.get('max_solar_radiation')),
+                    clouds_base: parseInt(formData.get('clouds_base')),
+                    heatwave_demand_multiplier: parseFloat(formData.get('heatwave_demand_multiplier')),
+                    heatwave_solar_reduction: parseFloat(formData.get('heatwave_solar_reduction')),
+                    heatwave_min_duration: parseInt(formData.get('heatwave_min_duration'))
+                },
+                speed: {
+                    fast_forward_nights: formData.has('fast_forward_nights'),
+                    slow_down_days: formData.has('slow_down_days')
+                }
+            };
+
+            const response = await fetch('http://localhost:8000/simulation/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    enabled: true,
+                    parameters: parameters
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Simulation parameters updated:', result);
+                this.closeSimulationParamsModal();
+                
+                // Add to activity log
+                this.addActivity('simulation', 'Custom simulation parameters applied', 'system');
+            } else {
+                console.error('Failed to update simulation parameters');
+                alert('Failed to update simulation parameters. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error submitting simulation parameters:', error);
+            alert('Error updating simulation parameters. Please check your network connection.');
+        }
+    }
+
+    async resetSimulationParams() {
+        try {
+            const response = await fetch('http://localhost:8000/simulation/config', {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                console.log('Simulation parameters reset to defaults');
+                // Reset form to default values
+                this.loadDefaultParameters();
+                
+                // Add to activity log
+                this.addActivity('simulation', 'Simulation parameters reset to defaults', 'system');
+            } else {
+                console.error('Failed to reset simulation parameters');
+            }
+        } catch (error) {
+            console.error('Error resetting simulation parameters:', error);
+        }
+    }
+
+    loadDefaultParameters() {
+        // Set default values for all parameters
+        this.setInputValue('solarCapacity', 3.5);
+        this.setInputValue('batterySize', 10.0);
+        this.setInputValue('initialBatteryLevel', 50);
+        this.setInputValue('orientation', 'south');
+        this.setInputValue('householdType', 'typical');
+        this.setInputValue('energyConscious', false);
+
+        this.setInputValue('minReserve', 20);
+        this.setInputValue('minPrice', 0.10);
+        this.setInputValue('maxPrice', 0.20);
+        this.setInputValue('maxTradingRounds', 3);
+        this.setInputValue('maxTradeSize', 2.0);
+        this.setInputValue('minTradeSize', 0.05);
+
+        this.setInputValue('tempMean', 22);
+        this.setInputValue('maxSolarRadiation', 800);
+        this.setInputValue('cloudsBase', 25);
+        this.setInputValue('heatwaveDemand', 1.5);
+        this.setInputValue('heatwaveSolar', 0.4);
+        this.setInputValue('heatwaveDuration', 3);
+
+        this.setInputValue('fastForwardNights', false);
+        this.setInputValue('slowDownDays', false);
+
+        // Update range displays
+        document.querySelectorAll('input[type="range"]').forEach(input => {
+            this.updateRangeDisplay(input);
+        });
+    }
+
+    updateSimulationControlStatus(config) {
+        const toggle = document.getElementById('simulationControlToggle');
+        if (toggle) {
+            toggle.checked = config.custom_enabled || false;
+        }
     }
 }
 
