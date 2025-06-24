@@ -39,6 +39,23 @@
   --shadow-glow: 0 0 20px rgba(255, 255, 255, 0.1);
 }
 
+[data-theme="dark"] {
+  /* Dark Theme Palette */
+  --bg-primary: #121212;
+  --bg-secondary: #1E1E1E;
+  --bg-tertiary: #1E1E1E;
+  --text-primary: #e2e8f0;
+  --text-secondary: #a0aec0;
+  --text-muted: #718096;
+  --border-color: #333333;
+
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 25px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 12px 35px rgba(0, 0, 0, 0.5);
+  --shadow-hover: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -1248,4 +1265,78 @@ input:checked + .slider:before {
     width: 95vw;
     margin: var(--spacing-md);
   }
+}
+
+/* Theme Switcher */
+.theme-switcher {
+  display: flex;
+  align-items: center;
+  margin-left: var(--spacing-md);
+}
+
+.theme-toggle-checkbox {
+  display: none;
+}
+
+.theme-toggle-label {
+  display: block;
+  position: relative;
+  width: 50px;
+  height: 26px;
+  border-radius: 15px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.theme-toggle-inner {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 15px;
+  transition: background var(--transition-fast);
+}
+
+.theme-toggle-switch {
+  display: block;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: all var(--transition-medium);
+}
+
+/* Icons for the toggle */
+.theme-toggle-label::before, .theme-toggle-label::after {
+  content: '';
+  position: absolute;
+  font-size: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+}
+
+.theme-toggle-label::before {
+  content: '☀️';
+  left: 5px;
+  opacity: 1;
+}
+
+.theme-toggle-label::after {
+  content: '🌙';
+  right: 5px;
+  opacity: 0;
+}
+
+[data-theme="dark"] .theme-toggle-label::before { opacity: 0; }
+[data-theme="dark"] .theme-toggle-label::after { opacity: 1; }
+
+.theme-toggle-checkbox:checked + .theme-toggle-label .theme-toggle-switch {
+  transform: translateX(24px);
+  background: white;
 }

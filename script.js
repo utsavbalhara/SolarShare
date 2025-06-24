@@ -16,6 +16,8 @@ class SolarShareDashboard {
         this.animationQueue = [];
         this.isAnimating = false;
         
+        this.themeToggle = null;
+        
         this.init();
     }
 
@@ -88,6 +90,11 @@ class SolarShareDashboard {
                 this.closeModal();
             }
         });
+
+        // Theme switcher
+        this.themeToggle = document.getElementById('themeToggle');
+        this.themeToggle.addEventListener('change', () => this.toggleTheme());
+        this.applyInitialTheme();
 
         // Simulation control toggles
         document.getElementById('fastForwardToggle').addEventListener('change', (e) => {
@@ -1278,6 +1285,49 @@ class SolarShareDashboard {
         } catch (error) {
             console.error('Failed to refresh controls state:', error);
         }
+    }
+
+    toggleTheme() {
+        const isDarkMode = this.themeToggle.checked;
+        this.setTheme(isDarkMode ? 'dark' : 'light');
+    }
+
+    setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('solar-theme', theme);
+        this.themeToggle.checked = theme === 'dark';
+
+        // Update chart colors if they exist
+        if (this.chart) {
+            this.updateChartAppearance(this.chart, theme);
+        }
+        if (this.solarRadiationChart) {
+            this.updateChartAppearance(this.solarRadiationChart, theme);
+        }
+        if (this.temperatureChart) {
+            this.updateChartAppearance(this.temperatureChart, theme);
+        }
+    }
+
+    applyInitialTheme() {
+        const savedTheme = localStorage.getItem('solar-theme') || 'light';
+        this.setTheme(savedTheme);
+    }
+    
+    updateChartAppearance(chart, theme) {
+        const isDark = theme === 'dark';
+        const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+        const textColor = isDark ? '#a0aec0' : '#4a5568';
+        const titleColor = isDark ? '#e2e8f0' : '#1a202c';
+
+        chart.options.scales.x.grid.color = gridColor;
+        chart.options.scales.y.grid.color = gridColor;
+        chart.options.scales.x.ticks.color = textColor;
+        chart.options.scales.y.ticks.color = textColor;
+        chart.options.plugins.legend.labels.color = textColor;
+        chart.options.plugins.title.color = titleColor;
+        
+        chart.update();
     }
 }
 
