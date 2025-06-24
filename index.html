@@ -125,7 +125,7 @@
 
             <!-- Weather Section -->
             <div class="section" id="weatherSection">
-                <div class="dashboard-grid">
+                <div class="weather-dashboard-grid">
                     <section class="card weather-card">
                         <div class="card-header">
                             <div class="weather-header-left">
@@ -156,6 +156,28 @@
                                     <span class="weather-value" id="humidity">65%</span>
                                 </div>
                             </div>
+                        </div>
+                    </section>
+                    
+                    <!-- Solar Radiation Chart -->
+                    <section class="card weather-chart-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Solar Radiation</h3>
+                            <div class="chart-period">Last 24 Hours</div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="solarRadiationChart"></canvas>
+                        </div>
+                    </section>
+                    
+                    <!-- Temperature Chart -->
+                    <section class="card weather-chart-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Temperature</h3>
+                            <div class="chart-period">Last 24 Hours</div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="temperatureChart"></canvas>
                         </div>
                     </section>
                 </div>

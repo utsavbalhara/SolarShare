@@ -5,6 +5,9 @@ class SolarShareDashboard {
         this.reconnectInterval = null;
         this.lastUpdateTime = null;
         this.chart = null;
+        this.solarRadiationChart = null;
+        this.temperatureChart = null;
+        this.weatherData = [];
         this.householdData = new Map();
         this.activityLog = [];
         this.isConnected = false;
@@ -29,8 +32,12 @@ class SolarShareDashboard {
         // Connect WebSocket
         this.connectWebSocket();
         
-        // Initialize chart
+        // Initialize charts
         this.initializeChart();
+        this.initializeWeatherCharts();
+        
+        // Load initial weather data for charts
+        this.loadInitialWeatherData();
         
         // Start periodic chart data refresh
         setInterval(() => {
@@ -176,6 +183,7 @@ class SolarShareDashboard {
         // Update weather
         if (data.weather) {
             this.updateWeather(data.weather);
+            this.updateWeatherCharts(data.weather, data.timestamp);
         }
         
         // Update households
@@ -762,6 +770,286 @@ class SolarShareDashboard {
             this.chart.update('active'); // Use active animation for better visual feedback
         } catch (error) {
             console.error('Error updating chart:', error);
+        }
+    }
+
+    initializeWeatherCharts() {
+        // Initialize Solar Radiation Chart
+        const solarCtx = document.getElementById('solarRadiationChart').getContext('2d');
+        this.solarRadiationChart = new Chart(solarCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Solar Radiation (W/m²)',
+                    data: [],
+                    borderColor: '#F59E0B',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 2,
+                    pointHoverRadius: 6,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(26, 26, 46, 0.9)',
+                        titleColor: '#FFFFFF',
+                        bodyColor: '#A0AEC0',
+                        borderColor: '#2D3748',
+                        borderWidth: 1,
+                        callbacks: {
+                            title: function(context) {
+                                const date = new Date(context[0].parsed.x);
+                                return date.toLocaleTimeString('en-US', { 
+                                    hour: 'numeric', 
+                                    minute: '2-digit', 
+                                    hour12: true,
+                                    timeZone: 'UTC'
+                                });
+                            },
+                            label: function(context) {
+                                return `Solar Radiation: ${context.parsed.y.toFixed(0)} W/m²`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'hour',
+                            displayFormats: {
+                                hour: 'HH:mm'
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(45, 55, 72, 0.5)'
+                        },
+                        ticks: {
+                            color: '#718096',
+                            maxTicksLimit: 12
+                        },
+                        title: {
+                            display: true,
+                            text: 'Simulation Time',
+                            color: '#A0AEC0'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        max: 1000,
+                        grid: {
+                            color: 'rgba(45, 55, 72, 0.5)'
+                        },
+                        ticks: {
+                            color: '#718096'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Solar Radiation (W/m²)',
+                            color: '#A0AEC0'
+                        }
+                    }
+                },
+                elements: {
+                    point: {
+                        radius: 2,
+                        hoverRadius: 6
+                    }
+                },
+                animation: {
+                    duration: 750,
+                    easing: 'easeInOutQuart'
+                }
+            }
+        });
+
+        // Initialize Temperature Chart
+        const tempCtx = document.getElementById('temperatureChart').getContext('2d');
+        this.temperatureChart = new Chart(tempCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Temperature (°C)',
+                    data: [],
+                    borderColor: '#EF4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 2,
+                    pointHoverRadius: 6,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(26, 26, 46, 0.9)',
+                        titleColor: '#FFFFFF',
+                        bodyColor: '#A0AEC0',
+                        borderColor: '#2D3748',
+                        borderWidth: 1,
+                        callbacks: {
+                            title: function(context) {
+                                const date = new Date(context[0].parsed.x);
+                                return date.toLocaleTimeString('en-US', { 
+                                    hour: 'numeric', 
+                                    minute: '2-digit', 
+                                    hour12: true,
+                                    timeZone: 'UTC'
+                                });
+                            },
+                            label: function(context) {
+                                return `Temperature: ${context.parsed.y.toFixed(1)}°C`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'hour',
+                            displayFormats: {
+                                hour: 'HH:mm'
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(45, 55, 72, 0.5)'
+                        },
+                        ticks: {
+                            color: '#718096',
+                            maxTicksLimit: 12
+                        },
+                        title: {
+                            display: true,
+                            text: 'Simulation Time',
+                            color: '#A0AEC0'
+                        }
+                    },
+                    y: {
+                        grid: {
+                            color: 'rgba(45, 55, 72, 0.5)'
+                        },
+                        ticks: {
+                            color: '#718096'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Temperature (°C)',
+                            color: '#A0AEC0'
+                        }
+                    }
+                },
+                elements: {
+                    point: {
+                        radius: 2,
+                        hoverRadius: 6
+                    }
+                },
+                animation: {
+                    duration: 750,
+                    easing: 'easeInOutQuart'
+                }
+            }
+        });
+    }
+
+    updateWeatherCharts(weather, timestamp) {
+        if (!this.solarRadiationChart || !this.temperatureChart) return;
+
+        const time = new Date(timestamp);
+        const solar_radiation = parseFloat(weather.solar_radiation ?? 0);
+        const temperature = parseFloat(weather.temp ?? 22.5);
+
+        // Add new data point
+        this.weatherData.push({
+            timestamp: time,
+            solar_radiation: solar_radiation,
+            temperature: temperature
+        });
+
+        // Keep only last 24 hours of data (24 data points since we get 1 per hour)
+        const maxDataPoints = 24;
+        if (this.weatherData.length > maxDataPoints) {
+            this.weatherData = this.weatherData.slice(-maxDataPoints);
+        }
+
+        // Update solar radiation chart
+        const solarLabels = this.weatherData.map(item => item.timestamp);
+        const solarData = this.weatherData.map(item => item.solar_radiation);
+        
+        this.solarRadiationChart.data.labels = solarLabels;
+        this.solarRadiationChart.data.datasets[0].data = solarData;
+        this.solarRadiationChart.update('none'); // Use 'none' for real-time updates
+
+        // Update temperature chart
+        const tempLabels = this.weatherData.map(item => item.timestamp);
+        const tempData = this.weatherData.map(item => item.temperature);
+        
+        this.temperatureChart.data.labels = tempLabels;
+        this.temperatureChart.data.datasets[0].data = tempData;
+        this.temperatureChart.update('none'); // Use 'none' for real-time updates
+    }
+
+    async loadInitialWeatherData() {
+        try {
+            // Load the household_state.json file to get historical weather data
+            const response = await fetch('/household_state.json');
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Loaded initial weather data:', data.length, 'data points');
+                
+                // Take the last 24 data points for initial display
+                const recentData = data.slice(-24);
+                
+                // Initialize weather data array with historical data
+                this.weatherData = recentData.map(item => ({
+                    timestamp: new Date(item.timestamp),
+                    solar_radiation: parseFloat(item.weather?.solar_radiation ?? 0),
+                    temperature: parseFloat(item.weather?.temp ?? 22.5)
+                }));
+                
+                // Update charts with initial data
+                if (this.solarRadiationChart && this.temperatureChart) {
+                    const solarLabels = this.weatherData.map(item => item.timestamp);
+                    const solarData = this.weatherData.map(item => item.solar_radiation);
+                    const tempLabels = this.weatherData.map(item => item.timestamp);
+                    const tempData = this.weatherData.map(item => item.temperature);
+                    
+                    this.solarRadiationChart.data.labels = solarLabels;
+                    this.solarRadiationChart.data.datasets[0].data = solarData;
+                    this.solarRadiationChart.update();
+                    
+                    this.temperatureChart.data.labels = tempLabels;
+                    this.temperatureChart.data.datasets[0].data = tempData;
+                    this.temperatureChart.update();
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load initial weather data:', error);
         }
     }
 

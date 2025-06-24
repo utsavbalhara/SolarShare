@@ -251,9 +251,33 @@ body {
   color: var(--text-primary);
 }
 
+/* Weather Dashboard Grid */
+.weather-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: var(--spacing-lg);
+}
+
 /* Weather Card */
 .weather-card {
   grid-column: span 1;
+}
+
+/* Weather Chart Cards */
+.weather-chart-card {
+  grid-column: span 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 350px;
+}
+
+.chart-period {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
 }
 
 /* Compact Weather Card for Home */
@@ -1089,6 +1113,11 @@ body {
   }
   
   .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+  
+  .weather-dashboard-grid {
     grid-template-columns: 1fr;
     gap: var(--spacing-md);
   }
