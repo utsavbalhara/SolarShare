@@ -174,10 +174,5 @@ This Digital Twin Simulation Engine is the foundation for the complete SolarShar
 
 This project is part of a larger solar energy trading platform. The simulation engine provides a solid foundation for testing and developing energy trading algorithms without requiring physical infrastructure.
 
-## 📄 License
-
-[Add your license information here]
-
----
-
 **SolarShare** - Empowering communities through peer-to-peer solar energy trading. 
+**Contributor** - [Yuvraj Sharma](https://github.com/yuvrajshr); Github Username: yuvrajshr
