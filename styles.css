@@ -180,9 +180,9 @@ body {
 /* Dashboard Grid */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  grid-template-columns: 1fr 2fr;
+  grid-template-rows: minmax(200px, auto) minmax(400px, auto);
   gap: var(--spacing-lg);
-  grid-auto-rows: auto;
 }
 
 /* Card Base Styles - Elevated */
@@ -260,6 +260,8 @@ body {
 .weather-card-compact {
   cursor: pointer;
   transition: all var(--transition-medium);
+  grid-column: 1;
+  grid-row: 1;
 }
 
 .weather-card-compact:hover {
@@ -341,6 +343,12 @@ body {
   align-items: flex-end;
 }
 
+.stat-name {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 .stat-value {
   font-size: 1.1rem;
   font-weight: 600;
@@ -348,6 +356,12 @@ body {
   line-height: 1;
 }
 
+.stat-unit {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Legacy support for old stat-label class */
 .stat-label {
   font-size: 0.75rem;
   color: var(--text-muted);
@@ -633,7 +647,10 @@ body {
 
 /* Metrics Card */
 .metrics-card {
-  grid-column: span 2;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-direction: column;
 }
 
 .metrics-period {
@@ -743,14 +760,23 @@ body {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
+  flex: 1;
+  min-height: 250px;
   box-shadow: var(--shadow-sm);
   padding: var(--spacing-md);
 }
 
 /* Activity Card */
 .activity-card {
-  grid-column: span 1;
-  max-height: 500px;
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+}
+
+.activity-feed {
+  flex: 1;
+  overflow-y: auto;
 }
 
 .activity-time {
@@ -828,6 +854,82 @@ body {
 .activity-time-stamp {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+/* Activity Tooltip */
+.activity-tooltip {
+  position: absolute;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  box-shadow: var(--shadow-lg);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+
+.activity-tooltip.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.activity-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-left: none;
+  border-top: none;
+}
+
+.tooltip-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  min-width: 200px;
+}
+
+.tooltip-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tooltip-label {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.tooltip-value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.tooltip-value.total {
+  color: var(--seller-primary);
+  font-weight: 600;
+}
+
+/* Tooltip when shown below the item */
+.activity-tooltip.below::before {
+  bottom: auto;
+  top: -4px;
+  border-left: 1px solid var(--border-color);
+  border-top: 1px solid var(--border-color);
+  border-right: none;
+  border-bottom: none;
 }
 
 /* Modal Styles */

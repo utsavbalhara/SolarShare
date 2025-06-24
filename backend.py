@@ -166,11 +166,16 @@ async def state_websocket(websocket: WebSocket):
                     "humidity": 65
                 })
                 
+                # Get recent trades from CSV file
+                all_trades = get_trades()
+                # Get only recent trades (last 10) to avoid sending too much data
+                recent_trades = all_trades[-10:] if all_trades else []
+                
                 # Format data for frontend
                 state_data = {
                     "timestamp": household_state.get("timestamp", datetime.now().isoformat()),
                     "households": household_state.get("households", []),
-                    "trades": household_state.get("trades", []),
+                    "trades": recent_trades,
                     "weather": weather_data
                 }
                 

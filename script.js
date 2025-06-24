@@ -273,11 +273,12 @@ class SolarShareDashboard {
     }
 
     updateWeather(weather) {
-        // Update temperature - rounded to 2 decimal places
-        const temp = parseFloat(weather.temp || 22.5).toFixed(2);
-        const solarRad = parseFloat(weather.solar_radiation || 800).toFixed(0);
-        const clouds = parseFloat(weather.clouds || 30).toFixed(0);
-        const humidity = parseFloat(weather.humidity || 65).toFixed(0);
+        // Update temperature - rounded to 1 decimal place
+        const temp = parseFloat(weather.temp ?? 22.5).toFixed(1);
+        // Use ?? instead of || to properly handle 0 values for solar radiation
+        const solarRad = parseFloat(weather.solar_radiation ?? 800).toFixed(0);
+        const clouds = parseFloat(weather.clouds ?? 30).toFixed(0);
+        const humidity = parseFloat(weather.humidity ?? 65).toFixed(0);
         
         // Update main weather section
         document.getElementById('temperature').textContent = `${temp}°C`;
@@ -382,16 +383,19 @@ class SolarShareDashboard {
     }
 
     updateTrades(trades) {
+        // Clean up any existing tooltips since we're about to update the activity feed
+        this.cleanupAllTooltips();
+        
         // Add new trades to activity log
         trades.forEach(trade => {
             if (!this.activityLog.find(log => 
-                log.seller === trade.seller && 
-                log.buyer === trade.buyer && 
+                log.seller_id === trade.seller_id && 
+                log.buyer_id === trade.buyer_id && 
                 log.timestamp === trade.timestamp
             )) {
                 this.activityLog.unshift({
                     type: 'trade',
-                    text: `${trade.seller} → ${trade.buyer}: ${trade.kwh} kWh at $${trade.price}/kWh`,
+                    text: `House ${trade.seller_id} → House ${trade.buyer_id}`,
                     timestamp: new Date(trade.timestamp || Date.now()),
                     ...trade
                 });
@@ -404,6 +408,9 @@ class SolarShareDashboard {
     }
 
     renderActivityFeed() {
+        // Clean up any existing tooltips before re-rendering
+        this.cleanupAllTooltips();
+        
         const feed = document.getElementById('activityFeed');
         
         if (this.activityLog.length === 0) {
@@ -412,7 +419,10 @@ class SolarShareDashboard {
         }
         
         feed.innerHTML = this.activityLog.map(activity => `
-            <div class="activity-item">
+            <div class="activity-item" 
+                 data-kwh="${activity.kwh || 0}" 
+                 data-price="${activity.price || 0}" 
+                 data-total="${activity.total || (activity.kwh * activity.price) || 0}">
                 <div class="activity-icon ${activity.type}">
                     ${activity.type === 'trade' ? '⚡' : 'ℹ️'}
                 </div>
@@ -422,6 +432,125 @@ class SolarShareDashboard {
                 </div>
             </div>
         `).join('');
+        
+        // Add tooltip functionality to activity items
+        this.addActivityTooltips();
+    }
+
+    addActivityTooltips() {
+        const activityItems = document.querySelectorAll('.activity-item[data-kwh]');
+        
+        activityItems.forEach(item => {
+            let tooltip = null;
+            
+            const showTooltip = (e) => {
+                // Remove any existing tooltip first
+                this.removeTooltip(tooltip);
+                
+                const activityItem = e.target.closest('.activity-item');
+                const kwh = parseFloat(activityItem.dataset.kwh);
+                const price = parseFloat(activityItem.dataset.price);
+                const total = parseFloat(activityItem.dataset.total);
+                
+                // Only show tooltip for trade items with valid data
+                if (kwh > 0 && price > 0) {
+                    tooltip = this.createTooltip(kwh, price, total);
+                    document.body.appendChild(tooltip);
+                    
+                    // Position tooltip relative to the activity item
+                    this.positionTooltip(tooltip, activityItem);
+                    
+                    // Show tooltip with animation
+                    setTimeout(() => {
+                        if (tooltip) tooltip.classList.add('show');
+                    }, 10);
+                }
+            };
+            
+            const hideTooltip = () => {
+                if (tooltip && tooltip.parentNode) {
+                    this.removeTooltip(tooltip);
+                }
+                tooltip = null;
+            };
+            
+            item.addEventListener('mouseenter', showTooltip);
+            item.addEventListener('mouseleave', hideTooltip);
+        });
+    }
+
+    createTooltip(kwh, price, total) {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'activity-tooltip';
+        
+        tooltip.innerHTML = `
+            <div class="tooltip-content">
+                <div class="tooltip-line">
+                    <span class="tooltip-label">Energy Amount:</span>
+                    <span class="tooltip-value">${kwh.toFixed(3)} kWh</span>
+                </div>
+                <div class="tooltip-line">
+                    <span class="tooltip-label">Price per kWh:</span>
+                    <span class="tooltip-value">$${price.toFixed(3)}</span>
+                </div>
+                <div class="tooltip-line">
+                    <span class="tooltip-label">Total Cost:</span>
+                    <span class="tooltip-value total">$${total.toFixed(3)}</span>
+                </div>
+            </div>
+        `;
+        
+        return tooltip;
+    }
+
+    cleanupAllTooltips() {
+        // Remove all existing tooltips immediately (no animation needed since we're re-rendering)
+        const existingTooltips = document.querySelectorAll('.activity-tooltip');
+        existingTooltips.forEach(tooltip => {
+            if (tooltip.parentNode) {
+                tooltip.parentNode.removeChild(tooltip);
+            }
+        });
+    }
+
+    removeTooltip(tooltip) {
+        if (tooltip && tooltip.parentNode) {
+            tooltip.classList.remove('show');
+            setTimeout(() => {
+                // Double-check that tooltip still exists and has a parent
+                if (tooltip && tooltip.parentNode && document.contains(tooltip)) {
+                    tooltip.parentNode.removeChild(tooltip);
+                }
+            }, 150); // Match CSS transition duration
+        }
+    }
+
+    positionTooltip(tooltip, activityItem) {
+        const itemRect = activityItem.getBoundingClientRect();
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+        
+        // Position tooltip above the activity item, centered horizontally
+        let left = itemRect.left + scrollX + (itemRect.width / 2) - (tooltipRect.width / 2);
+        let top = itemRect.top + scrollY - tooltipRect.height - 10;
+        
+        // Adjust if tooltip goes off screen horizontally
+        if (left < 10) left = 10;
+        if (left + tooltipRect.width > window.innerWidth - 10) {
+            left = window.innerWidth - tooltipRect.width - 10;
+        }
+        
+        // If tooltip would go above viewport, show it below the item instead
+        if (top < scrollY + 10) {
+            top = itemRect.bottom + scrollY + 10;
+            tooltip.classList.add('below');
+        } else {
+            tooltip.classList.remove('below');
+        }
+        
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
     }
 
     async refreshMetrics() {
