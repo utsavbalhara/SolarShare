@@ -22,6 +22,7 @@ app.add_middleware(
 
 TRADES_FILE = "trades.csv"
 HOUSEHOLD_STATE_FILE = "household_state.json"
+CONTROLS_FILE = "simulation_controls.json"
 
 # Global variables for metrics calculation
 previous_metrics = None
@@ -33,6 +34,26 @@ def get_trades():
         return []
     df = pd.read_csv(TRADES_FILE)
     return df.to_dict(orient="records")
+
+def get_controls():
+    """Reads control states from a JSON file."""
+    if not os.path.exists(CONTROLS_FILE):
+        # Create the file with default values if it doesn't exist
+        with open(CONTROLS_FILE, "w") as f:
+            default_controls = {"fast_forward_nights": False, "slow_down_days": False}
+            json.dump(default_controls, f)
+        return default_controls
+    
+    try:
+        with open(CONTROLS_FILE, "r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        return {"fast_forward_nights": False, "slow_down_days": False}
+
+def write_controls(controls_data: dict):
+    """Writes control states to a JSON file."""
+    with open(CONTROLS_FILE, "w") as f:
+        json.dump(controls_data, f)
 
 def get_household_state():
     if not os.path.exists(HOUSEHOLD_STATE_FILE):
@@ -171,12 +192,16 @@ async def state_websocket(websocket: WebSocket):
                 # Get only recent trades (last 10) to avoid sending too much data
                 recent_trades = all_trades[-10:] if all_trades else []
                 
+                # Get control states
+                controls = get_controls()
+                
                 # Format data for frontend
                 state_data = {
                     "timestamp": household_state.get("timestamp", datetime.now().isoformat()),
                     "households": household_state.get("households", []),
                     "trades": recent_trades,
-                    "weather": weather_data
+                    "weather": weather_data,
+                    "controls": controls
                 }
                 
                 # Log once every 30 seconds (15 WebSocket calls) to verify data flow
@@ -207,6 +232,28 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"WebSocket closed: {e}")
         await websocket.close()
+
+# Simulation Control Endpoints
+@app.get("/controls/status")
+def get_controls_status():
+    """Returns the current state of simulation controls."""
+    return JSONResponse(content=get_controls())
+
+@app.post("/controls/fast-forward-nights")
+def toggle_fast_forward_nights():
+    """Toggles the fast-forward nights setting."""
+    controls = get_controls()
+    controls["fast_forward_nights"] = not controls.get("fast_forward_nights", False)
+    write_controls(controls)
+    return JSONResponse(content=controls)
+
+@app.post("/controls/slow-down-days")
+def toggle_slow_down_days():
+    """Toggles the slow-down days setting."""
+    controls = get_controls()
+    controls["slow_down_days"] = not controls.get("slow_down_days", False)
+    write_controls(controls)
+    return JSONResponse(content=controls)
 
 # History endpoint for time-series data
 @app.get("/history")

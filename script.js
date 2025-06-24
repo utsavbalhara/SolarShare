@@ -88,6 +88,15 @@ class SolarShareDashboard {
                 this.closeModal();
             }
         });
+
+        // Simulation control toggles
+        document.getElementById('fastForwardToggle').addEventListener('change', (e) => {
+            this.toggleControl('fast-forward-nights', e.target.checked);
+        });
+        
+        document.getElementById('slowDownToggle').addEventListener('change', (e) => {
+            this.toggleControl('slow-down-days', e.target.checked);
+        });
     }
 
     async loadInitialData() {
@@ -113,6 +122,15 @@ class SolarShareDashboard {
             } else {
                 console.error('Failed to load history data:', historyResponse.status);
             }
+
+            // Load initial control states
+            const controlsResponse = await fetch('http://localhost:8000/controls/status');
+            if (controlsResponse.ok) {
+                const controls = await controlsResponse.json();
+                console.log('Loaded initial controls:', controls);
+                this.updateControlToggles(controls);
+            }
+
         } catch (error) {
             console.error('Failed to load initial data:', error);
         }
@@ -194,6 +212,11 @@ class SolarShareDashboard {
         // Update trades and activity
         if (data.trades) {
             this.updateTrades(data.trades);
+        }
+        
+        // Update controls
+        if (data.controls) {
+            this.updateControlToggles(data.controls);
         }
         
         // Refresh metrics
@@ -1210,6 +1233,51 @@ class SolarShareDashboard {
     
     closeModal() {
         document.getElementById('householdModal').classList.remove('active');
+    }
+
+    updateControlToggles(controls) {
+        const fastForwardToggle = document.getElementById('fastForwardToggle');
+        const slowDownToggle = document.getElementById('slowDownToggle');
+        
+        if (fastForwardToggle) {
+            fastForwardToggle.checked = controls.fast_forward_nights;
+        }
+        
+        if (slowDownToggle) {
+            slowDownToggle.checked = controls.slow_down_days;
+        }
+    }
+
+    async toggleControl(controlName, isEnabled) {
+        try {
+            const response = await fetch(`http://localhost:8000/controls/${controlName}`, {
+                method: 'POST'
+            });
+            if (response.ok) {
+                const updatedControls = await response.json();
+                this.updateControlToggles(updatedControls);
+                console.log(`Toggled ${controlName} to ${isEnabled}`);
+            } else {
+                console.error(`Failed to toggle ${controlName}`);
+                // Revert UI on failure
+                this.refreshControls();
+            }
+        } catch (error) {
+            console.error(`Error toggling ${controlName}:`, error);
+            this.refreshControls();
+        }
+    }
+
+    async refreshControls() {
+        try {
+            const response = await fetch('http://localhost:8000/controls/status');
+            if (response.ok) {
+                const controls = await response.json();
+                this.updateControlToggles(controls);
+            }
+        } catch (error) {
+            console.error('Failed to refresh controls state:', error);
+        }
     }
 }
 

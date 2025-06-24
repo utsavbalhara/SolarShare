@@ -23,6 +23,23 @@
                     <button class="nav-tab" data-section="weather">Weather</button>
                     <button class="nav-tab" data-section="household">Household</button>
                 </nav>
+                <!-- Simulation Speed Controls -->
+                <div class="simulation-controls" id="simulationControls">
+                    <div class="control-toggle">
+                        <span class="control-label" title="Run nighttime hours (23:00-05:00) at 2x speed.">Fast-Forward Nights</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="fastForwardToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="control-toggle">
+                        <span class="control-label" title="Run daytime hours (06:00-22:00) at 0.5x speed.">Slow-Down Days</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="slowDownToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
                 <div class="status-indicator" id="connectionStatus">
                     <div class="status-dot"></div>
                     <span>Connected</span>

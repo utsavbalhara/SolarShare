@@ -365,6 +365,33 @@ class SimulationEngine:
         self.weather_cache = {}
         self.metrics = MetricsCollector()
         
+        # Time control state
+        self.fast_forward_nights = False
+        self.slow_down_days = False
+        self.controls_file = "simulation_controls.json"
+        self._read_controls()  # Initial read
+
+    def _read_controls(self):
+        """Read control states from file"""
+        if os.path.exists(self.controls_file):
+            try:
+                with open(self.controls_file, "r") as f:
+                    controls = json.load(f)
+                    self.fast_forward_nights = controls.get("fast_forward_nights", False)
+                    self.slow_down_days = controls.get("slow_down_days", False)
+            except (json.JSONDecodeError, FileNotFoundError):
+                pass # If file is being written to or doesn't exist, just use current state
+
+    def get_sleep_duration(self) -> float:
+        """Calculate sleep duration based on time of day and controls"""
+        # Night hours are 23:00 to 05:00 inclusive
+        is_night = self.current_hour >= 23 or self.current_hour <= 5
+        
+        if is_night:
+            return 0.5 if self.fast_forward_nights else 1.0
+        else: # Day hours are 06:00 to 22:00
+            return 2.0 if self.slow_down_days else 1.0
+
     def add_household(self, household: Household):
         """Add a household to the simulation"""
         self.households[household.id] = household
@@ -816,6 +843,9 @@ if __name__ == "__main__":
     # Real-time simulation loop
     try:
         while True:
+            # Read controls for real-time updates from backend
+            engine._read_controls()
+
             # Simulate one hour
             result = engine.simulate_step()
             
@@ -869,8 +899,8 @@ if __name__ == "__main__":
 
             print("-" * (len(timestamp) + 6))
 
-            # Wait for 1 second to simulate 1 hour passing
-            time.sleep(1)
+            # Wait for dynamic duration to simulate 1 hour passing
+            time.sleep(engine.get_sleep_duration())
 
     except KeyboardInterrupt:
         print("\nSimulation stopped by user.")
