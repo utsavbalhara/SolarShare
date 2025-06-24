@@ -198,44 +198,9 @@ body {
   will-change: transform, box-shadow;
 }
 
-.card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--seller-primary), var(--accent-blue), var(--buyer-primary));
-  opacity: 0;
-  transition: opacity var(--transition-medium);
-}
-
-.card::after {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: linear-gradient(135deg, rgba(56, 161, 105, 0.1), rgba(49, 130, 206, 0.1), rgba(229, 62, 62, 0.1));
-  border-radius: 18px;
-  opacity: 0;
-  z-index: -1;
-  transition: opacity var(--transition-medium);
-}
-
 .card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-hover);
-  border-color: var(--accent-blue);
-}
-
-.card:hover::before {
-  opacity: 1;
-}
-
-.card:hover::after {
-  opacity: 1;
 }
 
 .card-header {
