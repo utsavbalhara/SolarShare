@@ -91,21 +91,10 @@ body {
 }
 
 .title {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
   font-size: 2rem;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--seller-primary), var(--accent-blue));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
   flex-shrink: 0;
-}
-
-.title-icon {
-  font-size: 2.5rem;
-  animation: rotate 10s linear infinite;
 }
 
 /* Navigation Styles */
@@ -462,7 +451,8 @@ body {
 /* Households Card */
 .households-card {
   grid-column: span 2;
-  position: relative;
+  grid-row: span 2;
+  border: none;
 }
 
 .energy-flow-legend {
@@ -504,7 +494,7 @@ body {
 
 .household-item {
   background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
+  border: none;
   border-radius: 12px;
   padding: var(--spacing-md);
   box-shadow: var(--shadow-sm);
@@ -517,7 +507,6 @@ body {
 .household-item:hover {
   transform: scale(1.02) translateY(-2px);
   box-shadow: var(--shadow-lg);
-  border-color: var(--accent-blue);
 }
 
 .household-header {
@@ -545,19 +534,19 @@ body {
 .role-badge.seller {
   background: rgba(56, 161, 105, 0.2);
   color: var(--seller-secondary);
-  border: 1px solid var(--seller-primary);
+  border: none;
 }
 
 .role-badge.buyer {
   background: rgba(229, 62, 62, 0.2);
   color: var(--buyer-secondary);
-  border: 1px solid var(--buyer-primary);
+  border: none;
 }
 
 .role-badge.idle {
   background: rgba(113, 128, 150, 0.2);
   color: var(--text-muted);
-  border: 1px solid var(--text-muted);
+  border: none;
 }
 
 .battery-container {
