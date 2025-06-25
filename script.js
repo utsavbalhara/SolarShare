@@ -337,43 +337,24 @@ class SolarShareDashboard {
         const timeString = simTime.toLocaleTimeString('en-US', timeOptions);
         console.log('DEBUG: Formatted time string (UTC):', timeString);
         
-        // Format date
-        const dateOptions = { 
-            month: 'short', 
-            day: 'numeric', 
-            year: 'numeric' 
-        };
-        const dateString = simTime.toLocaleDateString('en-US', dateOptions);
         
-        // Format full date for weather section
-        const fullDateOptions = { 
-            month: 'long', 
-            day: 'numeric', 
-            year: 'numeric' 
-        };
-        const fullDateString = simTime.toLocaleDateString('en-US', fullDateOptions);
+        // Update header time
+        const headerTime = document.getElementById('headerTime');
+        if (headerTime) {
+            headerTime.textContent = timeString;
+        }
         
         // Update compact weather card
         const simTimeHome = document.getElementById('simTimeHome');
-        const simDateHome = document.getElementById('simDateHome');
         const simTimeFull = document.getElementById('simTimeFull');
-        const simDateFull = document.getElementById('simDateFull');
         
         if (simTimeHome) {
             simTimeHome.textContent = timeString;
         }
         
-        if (simDateHome) {
-            simDateHome.textContent = dateString;
-        }
-        
         // Update full weather section
         if (simTimeFull) {
             simTimeFull.textContent = timeString;
-        }
-        
-        if (simDateFull) {
-            simDateFull.textContent = fullDateString;
         }
     }
 

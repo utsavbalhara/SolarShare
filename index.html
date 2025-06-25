@@ -14,9 +14,12 @@
         <!-- Header -->
         <header class="header">
             <div class="header-content">
-                <h1 class="title">
-                    SolarShare
-                </h1>
+                <div class="title-container">
+                    <h1 class="title">
+                        SolarShare
+                    </h1>
+                    <div class="header-time" id="headerTime">12:00 PM</div>
+                </div>
                 <nav class="navigation">
                     <button class="nav-tab active" data-section="home">Home</button>
                     <button class="nav-tab" data-section="weather">Weather</button>
@@ -96,7 +99,6 @@
                             <h3 class="card-title">Weather</h3>
                             <div class="simulation-time">
                                 <div class="sim-time" id="simTimeHome">12:00 PM</div>
-                                <div class="sim-date" id="simDateHome">Jan 1, 2024</div>
                             </div>
                         </div>
                         <div class="weather-compact-content">
@@ -181,71 +183,76 @@
             <!-- Weather Section -->
             <div class="section" id="weatherSection">
                 <div class="weather-dashboard-grid">
-                    <section class="card weather-card">
-                        <div class="card-header">
-                            <div class="weather-header-left">
-                                <h2 class="card-title">Weather Conditions</h2>
-                                <div class="simulation-time-full">
-                                    <div class="sim-time-large" id="simTimeFull">12:00 PM</div>
-                                    <div class="sim-date-full" id="simDateFull">January 1, 2024</div>
+                    <!-- Top Grid: Weather Card + Solar Radiation (1:3 ratio) -->
+                    <div class="weather-top-grid">
+                        <section class="card weather-card">
+                            <div class="card-header">
+                                <div class="weather-header-left">
+                                    <h2 class="card-title">Weather Conditions</h2>
+                                    <div class="simulation-time-full">
+                                        <div class="sim-time-large" id="simTimeFull">12:00 PM</div>
+                                    </div>
+                                </div>
+                                <div class="weather-icon" id="weatherIcon">🌤️</div>
+                            </div>
+                            <div class="weather-content">
+                                <div class="weather-main">
+                                    <div class="temperature" id="temperature">22.5°C</div>
+                                    <div class="weather-desc" id="weatherDesc">Partly Cloudy</div>
+                                </div>
+                                <div class="weather-details">
+                                    <div class="weather-item">
+                                        <span class="weather-label">Solar Radiation</span>
+                                        <span class="weather-value" id="solarRadiation">800 W/m²</span>
+                                    </div>
+                                    <div class="weather-item">
+                                        <span class="weather-label">Cloud Cover</span>
+                                        <span class="weather-value" id="cloudCover">30%</span>
+                                    </div>
+                                    <div class="weather-item">
+                                        <span class="weather-label">Humidity</span>
+                                        <span class="weather-value" id="humidity">65%</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="weather-icon" id="weatherIcon">🌤️</div>
-                        </div>
-                        <div class="weather-content">
-                            <div class="weather-main">
-                                <div class="temperature" id="temperature">22.5°C</div>
-                                <div class="weather-desc" id="weatherDesc">Partly Cloudy</div>
+                        </section>
+                        
+                        <!-- Solar Radiation Chart -->
+                        <section class="card weather-chart-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Solar Radiation</h3>
+                                <div class="chart-period">Last 24 Hours</div>
                             </div>
-                            <div class="weather-details">
-                                <div class="weather-item">
-                                    <span class="weather-label">Solar Radiation</span>
-                                    <span class="weather-value" id="solarRadiation">800 W/m²</span>
-                                </div>
-                                <div class="weather-item">
-                                    <span class="weather-label">Cloud Cover</span>
-                                    <span class="weather-value" id="cloudCover">30%</span>
-                                </div>
-                                <div class="weather-item">
-                                    <span class="weather-label">Humidity</span>
-                                    <span class="weather-value" id="humidity">65%</span>
-                                </div>
+                            <div class="chart-container">
+                                <canvas id="solarRadiationChart"></canvas>
                             </div>
-                        </div>
-                    </section>
+                        </section>
+                    </div>
                     
-                    <!-- Solar Radiation Chart -->
-                    <section class="card weather-chart-card">
-                        <div class="card-header">
-                            <h3 class="card-title">Solar Radiation</h3>
-                            <div class="chart-period">Last 24 Hours</div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="solarRadiationChart"></canvas>
-                        </div>
-                    </section>
-                    
-                    <!-- Temperature Chart -->
-                    <section class="card weather-chart-card">
-                        <div class="card-header">
-                            <h3 class="card-title">Temperature</h3>
-                            <div class="chart-period">Last 24 Hours</div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="temperatureChart"></canvas>
-                        </div>
-                    </section>
-                    
-                    <!-- Humidity Chart -->
-                    <section class="card weather-chart-card">
-                        <div class="card-header">
-                            <h3 class="card-title">Humidity</h3>
-                            <div class="chart-period">Last 24 Hours</div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="humidityChart"></canvas>
-                        </div>
-                    </section>
+                    <!-- Bottom Grid: Temperature + Humidity (1:1 ratio) -->
+                    <div class="weather-bottom-grid">
+                        <!-- Temperature Chart -->
+                        <section class="card weather-chart-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Temperature</h3>
+                                <div class="chart-period">Last 24 Hours</div>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="temperatureChart"></canvas>
+                            </div>
+                        </section>
+                        
+                        <!-- Humidity Chart -->
+                        <section class="card weather-chart-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Humidity</h3>
+                                <div class="chart-period">Last 24 Hours</div>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="humidityChart"></canvas>
+                            </div>
+                        </section>
+                    </div>
                 </div>
             </div>
 
