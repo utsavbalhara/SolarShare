@@ -3,6 +3,7 @@ import pandas as pd
 from fastapi import FastAPI, WebSocket, Path, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import os
 import json
 from datetime import datetime, timedelta
@@ -19,6 +20,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files to serve frontend
+app.mount("/", StaticFiles(directory=".", html=True), name="static")
 
 TRADES_FILE = "trades.csv"
 HOUSEHOLD_STATE_FILE = "household_state.json"
