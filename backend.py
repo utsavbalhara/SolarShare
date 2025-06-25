@@ -21,9 +21,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files to serve frontend
-app.mount("/", StaticFiles(directory=".", html=True), name="static")
-
 TRADES_FILE = "trades.csv"
 HOUSEHOLD_STATE_FILE = "household_state.json"
 CONTROLS_FILE = "simulation_controls.json"
@@ -435,4 +432,7 @@ def get_household_details(household_id: str = Path(..., description="Household I
         })
         
     except Exception as e:
-        return JSONResponse(content={"error": f"Error fetching household details: {str(e)}"}, status_code=500) 
+        return JSONResponse(content={"error": f"Error fetching household details: {str(e)}"}, status_code=500)
+
+# Mount static files to serve frontend - MUST be last
+app.mount("/", StaticFiles(directory=".", html=True), name="static") 
