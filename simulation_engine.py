@@ -8,6 +8,7 @@ import os
 import pandas as pd
 from datetime import datetime, timedelta
 import json
+import math
 
 
 class Role(Enum):
@@ -42,7 +43,7 @@ class MetricsCollector:
         self.prev_resilience = 50.0
         
         # Constants
-        self.GRID_PRICE = 0.20  # $/kWh
+        self.GRID_PRICE = 17.18  # ₹/kWh
         self.GRID_EMISSIONS = 0.5  # kg CO2/kWh
 
     def update(self, engine, trades: list):
@@ -780,25 +781,21 @@ class TradingSystem:
         sellers.sort(key=lambda x: x.stored_energy, reverse=True)  # High stored energy first
         buyers.sort(key=lambda x: (x.stored_energy, -x.current_net_energy))  # Low stored energy, high deficit first
         
-        # Dynamic pricing based on supply/demand ratio (using available stored energy)
-        min_reserve = self.engine.params["trading"]["minimum_reserve_percentage"]
-        min_price = self.engine.params["trading"]["min_price"]
-        max_price = self.engine.params["trading"]["max_price"]
-        mid_price = (min_price + max_price) / 2
+        # Dynamic pricing based on buyer-seller ratio
+        num_buyers = len(buyers)
+        num_sellers = len(sellers)
         
-        supply = sum((h.stored_energy - min_reserve) / 100.0 * h.battery for h in sellers)  # Available kWh above reserve
-        demand = sum(abs(min(0, h.current_net_energy)) for h in buyers)  # Energy deficit in kWh
-        
-        if demand > 0:
-            supply_demand_ratio = supply / demand
-            if supply_demand_ratio > 1.5:
-                price = min_price  # Buyer's market
-            elif supply_demand_ratio > 0.8:
-                price = mid_price  # Balanced market
-            else:
-                price = max_price  # Seller's market
+        if num_sellers > 0:
+            buyer_seller_ratio = num_buyers / num_sellers
         else:
-            price = mid_price  # Default price
+            buyer_seller_ratio = 10.0  # High ratio when no sellers (maximum price)
+        
+        # Sigmoid-based pricing formula: ₹2-6 range
+        # Formula: price = 2 + 4 / (1 + e^(-2 * (ratio - 1)))
+        price = 2.0 + 4.0 / (1.0 + math.exp(-2.0 * (buyer_seller_ratio - 1.0)))
+        
+        # Ensure price stays within ₹2-6 range
+        price = max(2.0, min(6.0, price))
         
         # Match trades with multiple rounds for better satisfaction
         max_rounds = self.engine.params["trading"]["max_trading_rounds"]
@@ -957,7 +954,7 @@ if __name__ == "__main__":
             if output_data['trades']:
                 print("Trades this hour:")
                 for t in output_data['trades']:
-                    print(f"  {t['from']} -> {t['to']}: {t['kwh']:.2f} kWh @ ${t['price']:.2f}")
+                    print(f"  {t['from']} -> {t['to']}: {t['kwh']:.2f} kWh @ ₹{t['price']:.2f}")
             
             # Add summary statistics
             status = engine.get_community_status()

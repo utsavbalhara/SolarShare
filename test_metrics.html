@@ -23,8 +23,8 @@
     
     <div class="metric">
         <div>Cost Savings</div>
-        <span class="value" id="costSavings">$0</span>
-        <span class="delta" id="savingsDelta">+$0.0</span>
+        <span class="value" id="costSavings">₹0</span>
+        <span class="delta" id="savingsDelta">+₹0.0</span>
     </div>
     
     <div class="metric">
@@ -104,13 +104,13 @@
                 
                 // Update metric values with animation
                 animateCounter('energyTraded', parseFloat(metrics.energy_traded || 0), ' kWh');
-                animateCounter('costSavings', parseFloat(metrics.cost_savings || 0), '', '$');
+                animateCounter('costSavings', parseFloat(metrics.cost_savings || 0), '', '₹');
                 animateCounter('co2Reduced', parseFloat(metrics.co2_reduced || 0), ' kg');
                 animateCounter('resilience', parseInt(metrics.resilience || 0), '%');
                 
                 // Update deltas
                 updateDelta('energyDelta', metrics.delta_energy || '+0.0');
-                updateDelta('savingsDelta', metrics.delta_savings || '+0.0', '$');
+                updateDelta('savingsDelta', metrics.delta_savings || '+0.0', '₹');
                 updateDelta('co2Delta', metrics.delta_co2 || '+0.0');
                 updateDelta('resilienceDelta', metrics.delta_resilience || '+0');
                 

@@ -7,6 +7,7 @@ class SolarShareDashboard {
         this.chart = null;
         this.solarRadiationChart = null;
         this.temperatureChart = null;
+        this.humidityChart = null;
         this.weatherData = [];
         this.householdData = new Map();
         this.activityLog = [];
@@ -103,6 +104,21 @@ class SolarShareDashboard {
         
         document.getElementById('slowDownToggle').addEventListener('change', (e) => {
             this.toggleControl('slow-down-days', e.target.checked);
+        });
+
+        // Gear button popup control
+        document.getElementById('gearButton').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleSimulationPopup();
+        });
+
+        // Click outside popup to close
+        document.addEventListener('click', (e) => {
+            const popup = document.getElementById('simulationPopup');
+            const gearContainer = document.querySelector('.simulation-gear-container');
+            if (!gearContainer.contains(e.target) && popup.classList.contains('show')) {
+                this.hideSimulationPopup();
+            }
         });
 
         // Simulation control toggle
@@ -580,11 +596,11 @@ class SolarShareDashboard {
                 </div>
                 <div class="tooltip-line">
                     <span class="tooltip-label">Price per kWh:</span>
-                    <span class="tooltip-value">$${price.toFixed(3)}</span>
+                    <span class="tooltip-value">₹${price.toFixed(3)}</span>
                 </div>
                 <div class="tooltip-line">
                     <span class="tooltip-label">Total Cost:</span>
-                    <span class="tooltip-value total">$${total.toFixed(3)}</span>
+                    <span class="tooltip-value total">₹${total.toFixed(3)}</span>
                 </div>
             </div>
         `;
@@ -658,14 +674,14 @@ class SolarShareDashboard {
         console.log('Updating metrics:', metrics);
         
         // Update metric values with animation
-        this.animateCounter('energyTraded', parseFloat(metrics.energy_traded || 0), ' kWh');
-        this.animateCounter('costSavings', parseFloat(metrics.cost_savings || 0), '', '$');
+        this.animateCounter('energyTraded', parseFloat(metrics.energy_traded || 0));
+        this.animateCounter('costSavings', parseFloat(metrics.cost_savings || 0), '', '₹');
         this.animateCounter('co2Reduced', parseFloat(metrics.co2_reduced || 0), ' kg');
         this.animateCounter('resilience', parseInt(metrics.resilience || 0), '%');
         
         // Update deltas
         this.updateDelta('energyDelta', metrics.delta_energy || '+0.0');
-        this.updateDelta('savingsDelta', metrics.delta_savings || '+0.0', '$');
+        this.updateDelta('savingsDelta', metrics.delta_savings || '+0.0', '₹');
         this.updateDelta('co2Delta', metrics.delta_co2 || '+0.0');
         this.updateDelta('resilienceDelta', metrics.delta_resilience || '+0');
     }
@@ -734,7 +750,7 @@ class SolarShareDashboard {
                         tension: 0.4
                     },
                     {
-                        label: 'Cost Savings ($)',
+                        label: 'Cost Savings (₹)',
                         data: [],
                         borderColor: '#3182CE',
                         backgroundColor: 'rgba(49, 130, 206, 0.1)',
@@ -810,8 +826,8 @@ class SolarShareDashboard {
                 },
                 elements: {
                     point: {
-                        radius: 3,
-                        hoverRadius: 6
+                        radius: 0,
+                        hoverRadius: 0
                     }
                 },
                 animation: {
@@ -1056,20 +1072,124 @@ class SolarShareDashboard {
                 }
             }
         });
+
+        // Initialize Humidity Chart
+        const humidityCtx = document.getElementById('humidityChart').getContext('2d');
+        this.humidityChart = new Chart(humidityCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Humidity (%)',
+                    data: [],
+                    borderColor: '#06B6D4',
+                    backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 2,
+                    pointHoverRadius: 6,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(26, 26, 46, 0.9)',
+                        titleColor: '#FFFFFF',
+                        bodyColor: '#A0AEC0',
+                        borderColor: '#2D3748',
+                        borderWidth: 1,
+                        callbacks: {
+                            title: function(context) {
+                                const date = new Date(context[0].parsed.x);
+                                return date.toLocaleTimeString('en-US', { 
+                                    hour: 'numeric', 
+                                    minute: '2-digit', 
+                                    hour12: true,
+                                    timeZone: 'UTC'
+                                });
+                            },
+                            label: function(context) {
+                                return `Humidity: ${context.parsed.y.toFixed(0)}%`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'hour',
+                            displayFormats: {
+                                hour: 'HH:mm'
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(45, 55, 72, 0.5)'
+                        },
+                        ticks: {
+                            color: '#718096',
+                            maxTicksLimit: 12
+                        },
+                        title: {
+                            display: true,
+                            text: 'Simulation Time',
+                            color: '#A0AEC0'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: {
+                            color: 'rgba(45, 55, 72, 0.5)'
+                        },
+                        ticks: {
+                            color: '#718096'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Humidity (%)',
+                            color: '#A0AEC0'
+                        }
+                    }
+                },
+                elements: {
+                    point: {
+                        radius: 2,
+                        hoverRadius: 6
+                    }
+                },
+                animation: {
+                    duration: 750,
+                    easing: 'easeInOutQuart'
+                }
+            }
+        });
     }
 
     updateWeatherCharts(weather, timestamp) {
-        if (!this.solarRadiationChart || !this.temperatureChart) return;
+        if (!this.solarRadiationChart || !this.temperatureChart || !this.humidityChart) return;
 
         const time = new Date(timestamp);
         const solar_radiation = parseFloat(weather.solar_radiation ?? 0);
         const temperature = parseFloat(weather.temp ?? 22.5);
+        const humidity = parseFloat(weather.humidity ?? 65);
 
         // Add new data point
         this.weatherData.push({
             timestamp: time,
             solar_radiation: solar_radiation,
-            temperature: temperature
+            temperature: temperature,
+            humidity: humidity
         });
 
         // Keep only last 24 hours of data (24 data points since we get 1 per hour)
@@ -1093,6 +1213,14 @@ class SolarShareDashboard {
         this.temperatureChart.data.labels = tempLabels;
         this.temperatureChart.data.datasets[0].data = tempData;
         this.temperatureChart.update('none'); // Use 'none' for real-time updates
+
+        // Update humidity chart
+        const humidityLabels = this.weatherData.map(item => item.timestamp);
+        const humidityData = this.weatherData.map(item => item.humidity);
+        
+        this.humidityChart.data.labels = humidityLabels;
+        this.humidityChart.data.datasets[0].data = humidityData;
+        this.humidityChart.update('none'); // Use 'none' for real-time updates
     }
 
     async loadInitialWeatherData() {
@@ -1110,15 +1238,18 @@ class SolarShareDashboard {
                 this.weatherData = recentData.map(item => ({
                     timestamp: new Date(item.timestamp),
                     solar_radiation: parseFloat(item.weather?.solar_radiation ?? 0),
-                    temperature: parseFloat(item.weather?.temp ?? 22.5)
+                    temperature: parseFloat(item.weather?.temp ?? 22.5),
+                    humidity: parseFloat(item.weather?.humidity ?? 65)
                 }));
                 
                 // Update charts with initial data
-                if (this.solarRadiationChart && this.temperatureChart) {
+                if (this.solarRadiationChart && this.temperatureChart && this.humidityChart) {
                     const solarLabels = this.weatherData.map(item => item.timestamp);
                     const solarData = this.weatherData.map(item => item.solar_radiation);
                     const tempLabels = this.weatherData.map(item => item.timestamp);
                     const tempData = this.weatherData.map(item => item.temperature);
+                    const humidityLabels = this.weatherData.map(item => item.timestamp);
+                    const humidityData = this.weatherData.map(item => item.humidity);
                     
                     this.solarRadiationChart.data.labels = solarLabels;
                     this.solarRadiationChart.data.datasets[0].data = solarData;
@@ -1127,6 +1258,10 @@ class SolarShareDashboard {
                     this.temperatureChart.data.labels = tempLabels;
                     this.temperatureChart.data.datasets[0].data = tempData;
                     this.temperatureChart.update();
+                    
+                    this.humidityChart.data.labels = humidityLabels;
+                    this.humidityChart.data.datasets[0].data = humidityData;
+                    this.humidityChart.update();
                 }
             }
         } catch (error) {
@@ -1250,7 +1385,7 @@ class SolarShareDashboard {
                                     <div class="trade-type ${trade.type}">${trade.type.toUpperCase()}</div>
                                     <div class="trade-details">
                                         <div class="trade-partner">Partner: ${trade.partner}</div>
-                                        <div class="trade-amount">${trade.kwh.toFixed(2)} kWh at $${trade.price.toFixed(3)}/kWh</div>
+                                        <div class="trade-amount">${trade.kwh.toFixed(2)} kWh at ₹${trade.price.toFixed(3)}/kWh</div>
                                         <div class="trade-time">${new Date(trade.timestamp).toLocaleString()}</div>
                                     </div>
                                 </div>
@@ -1358,6 +1493,9 @@ class SolarShareDashboard {
         if (this.temperatureChart) {
             this.updateChartAppearance(this.temperatureChart, theme);
         }
+        if (this.humidityChart) {
+            this.updateChartAppearance(this.humidityChart, theme);
+        }
     }
 
     applyInitialTheme() {
@@ -1379,6 +1517,26 @@ class SolarShareDashboard {
         chart.options.plugins.title.color = titleColor;
         
         chart.update();
+    }
+
+    // Simulation Popup Methods
+    toggleSimulationPopup() {
+        const popup = document.getElementById('simulationPopup');
+        if (popup.classList.contains('show')) {
+            this.hideSimulationPopup();
+        } else {
+            this.showSimulationPopup();
+        }
+    }
+
+    showSimulationPopup() {
+        const popup = document.getElementById('simulationPopup');
+        popup.classList.add('show');
+    }
+
+    hideSimulationPopup() {
+        const popup = document.getElementById('simulationPopup');
+        popup.classList.remove('show');
     }
 
     // Simulation Parameters Modal Methods

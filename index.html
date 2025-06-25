@@ -22,40 +22,65 @@
                     <button class="nav-tab" data-section="weather">Weather</button>
                     <button class="nav-tab" data-section="household">Household</button>
                 </nav>
-                <div class="theme-switcher">
-                    <input type="checkbox" id="themeToggle" class="theme-toggle-checkbox">
-                    <label for="themeToggle" class="theme-toggle-label">
-                        <span class="theme-toggle-inner"></span>
-                        <span class="theme-toggle-switch"></span>
-                    </label>
-                </div>
-                <div class="simulation-control-toggle">
-                    <span class="control-label">Simulation Control</span>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="simulationControlToggle">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <!-- Simulation Speed Controls -->
-                <div class="simulation-controls" id="simulationControls">
-                    <div class="control-toggle">
-                        <span class="control-label" title="Run nighttime hours (23:00-05:00) at 2x speed.">Fast-Forward Nights</span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="fastForwardToggle">
-                            <span class="slider"></span>
-                        </label>
+                <!-- Right Controls Group -->
+                <div class="right-controls-group">
+                    <div class="theme-switcher">
+                        <input type="checkbox" id="themeToggle" class="theme-toggle-checkbox">
+                        <div class="theme-display">
+                            <label for="themeToggle" class="theme-toggle-label">
+                                <div class="theme-circle">
+                                    <svg class="sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M12 2.25a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM18.894 6.166a.75.75 0 0 0-1.06-1.06l-1.591 1.59a.75.75 0 1 0 1.06 1.061l1.591-1.59ZM21.75 12a.75.75 0 0 1-.75.75h-2.25a.75.75 0 0 1 0-1.5H21a.75.75 0 0 1 .75.75ZM17.834 18.894a.75.75 0 0 0 1.06-1.06l-1.59-1.591a.75.75 0 1 0-1.061 1.06l1.59 1.591ZM12 18a.75.75 0 0 1 .75.75V21a.75.75 0 0 1-1.5 0v-2.25A.75.75 0 0 1 12 18ZM7.758 17.303a.75.75 0 0 0-1.061-1.06l-1.591 1.59a.75.75 0 0 0 1.06 1.061l1.591-1.59ZM6 12a.75.75 0 0 1-.75.75H3a.75.75 0 0 1 0-1.5h2.25A.75.75 0 0 1 6 12ZM6.697 7.757a.75.75 0 0 0 1.06-1.06l-1.59-1.591a.75.75 0 0 0-1.061 1.06l1.59 1.591Z" />
+                                    </svg>
+                                    <svg class="moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M9.528 1.718a.75.75 0 0 1 .162.819A8.97 8.97 0 0 0 9 6a9 9 0 0 0 9 9 8.97 8.97 0 0 0 3.463-.69.75.75 0 0 1 .981.98 10.503 10.503 0 0 1-9.694 6.46c-5.799 0-10.5-4.7-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 0 1 .818.162Z" clip-rule="evenodd" />
+                                    </svg>                               
+                                </div>
+                            </label>
+                        </div>
                     </div>
-                    <div class="control-toggle">
-                        <span class="control-label" title="Run daytime hours (06:00-22:00) at 0.5x speed.">Slow-Down Days</span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="slowDownToggle">
-                            <span class="slider"></span>
-                        </label>
+                    <!-- Simulation Controls Button -->
+                    <div class="simulation-gear-container">
+                        <button class="gear-button" id="gearButton" title="Simulation Controls">
+                            <div class="arrow-down-icon"></div>
+                        </button>
+                        <!-- Simulation Controls Popup -->
+                        <div class="simulation-popup" id="simulationPopup">
+                            <div class="popup-arrow"></div>
+                            <div class="popup-content">
+                                <div class="popup-header">
+                                    <h3>Simulation Control</h3>
+                                </div>
+                                <div class="simulation-control-toggle">
+                                    <span class="control-label">Enable Custom Controls</span>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="simulationControlToggle">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="simulation-controls" id="simulationControls">
+                                    <div class="control-toggle">
+                                        <span class="control-label" title="Run nighttime hours (23:00-05:00) at 2x speed.">Fast-Forward Nights</span>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="fastForwardToggle">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="control-toggle">
+                                        <span class="control-label" title="Run daytime hours (06:00-22:00) at 0.5x speed.">Slow-Down Days</span>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="slowDownToggle">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="status-indicator" id="connectionStatus">
-                    <div class="status-dot"></div>
-                    <span>Connected</span>
+                    <div class="status-indicator" id="connectionStatus">
+                        <div class="status-dot"></div>
+                        <span>Connected</span>
+                    </div>
                 </div>
             </div>
         </header>
@@ -113,9 +138,9 @@
                             <div class="metric-item">
                                 <div class="metric-icon savings">💰</div>
                                 <div class="metric-content">
-                                    <div class="metric-value" id="costSavings">$0</div>
+                                    <div class="metric-value" id="costSavings">₹0</div>
                                     <div class="metric-label">Cost Savings</div>
-                                    <div class="metric-delta" id="savingsDelta">+$0.0</div>
+                                    <div class="metric-delta" id="savingsDelta">+₹0.0</div>
                                 </div>
                             </div>
                             <div class="metric-item">
@@ -208,6 +233,17 @@
                         </div>
                         <div class="chart-container">
                             <canvas id="temperatureChart"></canvas>
+                        </div>
+                    </section>
+                    
+                    <!-- Humidity Chart -->
+                    <section class="card weather-chart-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Humidity</h3>
+                            <div class="chart-period">Last 24 Hours</div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="humidityChart"></canvas>
                         </div>
                     </section>
                 </div>
@@ -329,12 +365,12 @@
                             <span class="param-value">20</span>
                         </div>
                         <div class="param-group">
-                            <label for="minPrice">Minimum Price ($/kWh)</label>
+                            <label for="minPrice">Minimum Price (₹/kWh)</label>
                             <input type="range" id="minPrice" name="min_price" min="0.05" max="0.15" step="0.01" value="0.10">
                             <span class="param-value">0.10</span>
                         </div>
                         <div class="param-group">
-                            <label for="maxPrice">Maximum Price ($/kWh)</label>
+                            <label for="maxPrice">Maximum Price (₹/kWh)</label>
                             <input type="range" id="maxPrice" name="max_price" min="0.15" max="0.30" step="0.01" value="0.20">
                             <span class="param-value">0.20</span>
                         </div>
