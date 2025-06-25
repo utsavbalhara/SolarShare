@@ -35,9 +35,10 @@ def start_simulation():
 def start_backend():
     """Start the FastAPI backend server"""
     print("🚀 Starting SolarShare Backend API...")
+    port = os.environ.get("PORT", "8000")
     cmd = [
         sys.executable, "-m", "uvicorn", "backend:app",
-        "--reload", "--host", "0.0.0.0", "--port", "8000"
+        "--reload", "--host", "0.0.0.0", "--port", str(port)
     ]
     return subprocess.Popen(cmd, cwd=os.getcwd())
 

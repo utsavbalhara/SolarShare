@@ -168,7 +168,7 @@ class SolarShareDashboard {
     async loadInitialData() {
         try {
             // Load initial metrics
-            const metricsResponse = await fetch('http://localhost:8000/metrics');
+            const metricsResponse = await fetch('/metrics');
             if (metricsResponse.ok) {
                 const metrics = await metricsResponse.json();
                 console.log('Loaded initial metrics:', metrics);
@@ -176,7 +176,7 @@ class SolarShareDashboard {
             }
             
             // Load history data for chart
-            const historyResponse = await fetch('http://localhost:8000/history?range=24h');
+            const historyResponse = await fetch('/history?range=24h');
             if (historyResponse.ok) {
                 const history = await historyResponse.json();
                 console.log('Loaded chart data:', history);
@@ -190,7 +190,7 @@ class SolarShareDashboard {
             }
 
             // Load initial control states
-            const controlsResponse = await fetch('http://localhost:8000/controls/status');
+            const controlsResponse = await fetch('/controls/status');
             if (controlsResponse.ok) {
                 const controls = await controlsResponse.json();
                 console.log('Loaded initial controls:', controls);
@@ -198,7 +198,7 @@ class SolarShareDashboard {
             }
 
             // Load initial simulation config status
-            const configResponse = await fetch('http://localhost:8000/simulation/config');
+            const configResponse = await fetch('/simulation/config');
             if (configResponse.ok) {
                 const config = await configResponse.json();
                 console.log('Loaded simulation config:', config);
@@ -212,7 +212,7 @@ class SolarShareDashboard {
 
     connectWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//localhost:8000/state`;
+        const wsUrl = `${protocol}//${window.location.host}/state`;
         
         try {
             this.websocket = new WebSocket(wsUrl);
@@ -641,7 +641,7 @@ class SolarShareDashboard {
 
     async refreshMetrics() {
         try {
-            const response = await fetch('http://localhost:8000/metrics');
+            const response = await fetch('/metrics');
             if (response.ok) {
                 const metrics = await response.json();
                 this.updateMetrics(metrics);
@@ -1252,7 +1252,7 @@ class SolarShareDashboard {
 
     async refreshChartData() {
         try {
-            const response = await fetch('http://localhost:8000/history?range=24h');
+            const response = await fetch('/history?range=24h');
             if (response.ok) {
                 const history = await response.json();
                 if (history.data && Array.isArray(history.data)) {
@@ -1266,7 +1266,7 @@ class SolarShareDashboard {
 
     async showHouseholdDetails(householdId) {
         try {
-            const response = await fetch(`http://localhost:8000/households/${householdId}/details`);
+            const response = await fetch(`/households/${householdId}/details`);
             if (!response.ok) throw new Error('Failed to fetch household details');
             
             const details = await response.json();
@@ -1424,7 +1424,7 @@ class SolarShareDashboard {
 
     async toggleControl(controlName, isEnabled) {
         try {
-            const response = await fetch(`http://localhost:8000/controls/${controlName}`, {
+            const response = await fetch(`/controls/${controlName}`, {
                 method: 'POST'
             });
             if (response.ok) {
@@ -1444,7 +1444,7 @@ class SolarShareDashboard {
 
     async refreshControls() {
         try {
-            const response = await fetch('http://localhost:8000/controls/status');
+            const response = await fetch('/controls/status');
             if (response.ok) {
                 const controls = await response.json();
                 this.updateControlToggles(controls);
@@ -1533,7 +1533,7 @@ class SolarShareDashboard {
     async openSimulationParamsModal() {
         try {
             // Load current configuration
-            const response = await fetch('http://localhost:8000/simulation/config');
+            const response = await fetch('/simulation/config');
             if (response.ok) {
                 const config = await response.json();
                 this.populateSimulationParams(config);
@@ -1678,7 +1678,7 @@ class SolarShareDashboard {
                 }
             };
 
-            const response = await fetch('http://localhost:8000/simulation/config', {
+            const response = await fetch('/simulation/config', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1708,7 +1708,7 @@ class SolarShareDashboard {
 
     async resetSimulationParams() {
         try {
-            const response = await fetch('http://localhost:8000/simulation/config', {
+            const response = await fetch('/simulation/config', {
                 method: 'DELETE'
             });
 
